@@ -1,8 +1,12 @@
 # Unity MCP Server v1.1.0
 
-[![.NET CI](https://github.com/unity-mcp/unity-mcp-server/actions/workflows/dotnet.yml/badge.svg)](https://github.com/unity-mcp/unity-mcp-server/actions/workflows/dotnet.yml)
-[![Static Analysis](https://github.com/unity-mcp/unity-mcp-server/actions/workflows/static_analysis.yml/badge.svg)](https://github.com/unity-mcp/unity-mcp-server/actions/workflows/static_analysis.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![.NET CI](https://img.shields.io/github/actions/workflow/status/ozymandros/unity-mcp-server/dotnet.yml?branch=main&label=.NET%20CI&logo=dotnet&logoColor=white&style=flat-square)](https://github.com/ozymandros/unity-mcp-server/actions/workflows/dotnet.yml)
+[![Quality](https://img.shields.io/github/actions/workflow/status/ozymandros/unity-mcp-server/static_analysis.yml?branch=main&label=Quality&logo=github-actions&logoColor=white&style=flat-square)](https://github.com/ozymandros/unity-mcp-server/actions/workflows/static_analysis.yml)
+[![Schema](https://img.shields.io/github/actions/workflow/status/ozymandros/unity-mcp-server/schema_validation.yml?branch=main&label=Schema&logo=json&logoColor=white&style=flat-square)](https://github.com/ozymandros/unity-mcp-server/actions/workflows/schema_validation.yml)
+[![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-orange?style=flat-square&logo=json)](https://modelcontextprotocol.io)
+[![UPM](https://img.shields.io/badge/Unity-2021.3%2B-black?logo=unity&logoColor=white&style=flat-square)](https://docs.unity3d.com/Manual/index.html)
+[![Version](https://img.shields.io/badge/UPM-1.1.0-blue?style=flat-square)](https://github.com/ozymandros/unity-mcp-server/releases)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square&logo=opensourceinitiative&logoColor=white)](https://opensource.org/licenses/MIT)
 
 A complete Model Context Protocol (MCP) server implementation for Unity Editor that enables AI assistants and LLMs to interact with Unity projects programmatically.
 
@@ -560,9 +564,14 @@ This implementation is provided as-is for educational and development purposes.
 
 ## Version History
 
+- **1.1.0** (2026-02-14)
+  - Implemented license-free CI/CD pipeline using pure .NET SDK.
+  - Added standalone test suite (`UnityMCP.Tests`) with NUnit validation.
+  - Created `UnityServer.sln` and assembly stubs for offline/CI compilation.
+  - Reorganized project into standard Unity Package structure (UPM).
+  - Added comprehensive CI/CD documentation and badge system.
 - **1.0.0** (2025-02-14)
-  - Initial release
-  - Core MCP server implementation
-  - 5 built-in tools
-  - Thread-safe main thread execution
-  - Automatic tool discovery
+  - Initial release with core MCP protocol support.
+  - Implemented thread-safe Unity main thread dispatcher.
+  - Automatic tool discovery and registration via reflection.
+  - Included 5 core tools for scene and object management.

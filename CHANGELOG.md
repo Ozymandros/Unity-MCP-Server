@@ -5,11 +5,44 @@ All notable changes to the Unity MCP Server project will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-02-14
+
+### Added
+
+- **License-Free CI/CD Infrastructure**:
+  - Pure .NET build support using `UnityServer.sln`.
+  - Standalone compilation capability without Unity Editor license.
+  - `UnityEngineStubs.cs` for mocking Unity types in external builds.
+  - GitHub Actions workflows for `.NET CI`, `Static Analysis`, and `Schema Validation`.
+- **Unit Test Suite**:
+  - New `UnityMCP.Tests` project using NUnit.
+  - Core protocol logic validation (McpMessage, McpDispatcher, McpToolRegistry).
+  - Mocked dispatcher queue processing for non-Unity environments.
+- **Project Organization**:
+  - Reorganized file structure into standard Unity Package (UPM) layout.
+  - Added project-level `CONTRIBUTING.md` and `LICENSE`.
+- **Documentation**:
+  - Comprehensive `CI_CD.md` guide for automated workflows.
+  - Updated README with professional badge system and UPM installation notes.
+
+### Changed
+
+- Moved core scripts to `Editor/Core/` and tools to `Editor/Tools/`.
+- Updated all core files version constants to `1.1.0`.
+- ProcessMainThreadQueue in `McpDispatcher` made public for test accessibility.
+- RegisterAllTools in `McpToolRegistry` made public for discovery testing.
+
+### Fixed
+
+- Improved JSON serialization compatibility with .NET Standard 2.0.
+- Resolved static constructor auto-start issues in test environments.
+
 ## [1.0.0] - 2025-02-14
 
 ### Added
 
 #### Core Infrastructure
+
 - **McpServer**: Main TCP server implementing Model Context Protocol
   - Listens on localhost:8765 by default
   - Supports multiple concurrent client connections
@@ -39,6 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Support for tool registration/unregistration
 
 #### Protocol Support
+
 - **initialize** method for MCP handshake
 - **tools/list** method for tool discovery
 - **tools/call** method for standard MCP tool invocation
@@ -46,6 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Protocol version: 2025-11-25
 
 #### Built-in Tools
+
 - **PingTool**: Connectivity testing with optional echo
 - **CreateSceneTool**: Scene creation with setup options
 - **CreateGameObjectTool**: GameObject instantiation with primitives
@@ -53,12 +88,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CreateScriptTool**: C# script generation with templates
 
 #### Tool Features
+
 - **BaseMcpTool**: Abstract base class for tool development
   - Helper methods for parameter extraction
   - JSON Schema support for input validation
   - Consistent error handling pattern
 
 #### Documentation
+
 - Comprehensive README with overview and examples
 - Detailed INSTALLATION guide with troubleshooting
 - Complete API_REFERENCE with all methods and types
@@ -67,6 +104,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Node.js client example with async/await support
 
 #### Developer Experience
+
 - Auto-discovery of custom tools via reflection
 - Simple tool creation with `IMcpTool` interface
 - Type-safe parameter helpers in `BaseMcpTool`
@@ -76,18 +114,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Features
 
 #### Thread Safety
+
 - All Unity API calls automatically execute on main thread
 - No manual thread synchronization needed in tools
 - Queue-based execution ensures serial processing
 - Exception isolation per tool execution
 
 #### Error Handling
+
 - JSON-RPC 2.0 compliant error codes
 - Detailed error messages with stack traces
 - Tool-level exception catching
 - Network error recovery
 
 #### Extensibility
+
 - Reflection-based tool discovery
 - Plugin architecture for custom tools
 - No core modification needed for new tools
@@ -96,29 +137,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Technical Details
 
 #### Dependencies
+
 - Unity Editor 2020.3 or later
 - .NET Standard 2.0
 - System.Text.Json (built-in Unity 2020.3+)
 
 #### Performance
+
 - Minimal idle overhead (~1-2 MB memory)
 - ~100 KB per client connection
 - 8 KB message buffer per client
 - Sub-millisecond dispatch overhead
 
 #### Network
+
 - TCP transport on IPv4 loopback
 - JSON-RPC 2.0 message format
 - Newline-delimited message framing
 - No authentication (localhost-only)
 
 ### Testing
+
 - Manual testing with example clients
 - Python client example validates all tools
 - Node.js client example demonstrates async patterns
 - Ping tool for connectivity verification
 
 ### Known Limitations
+
 - Single protocol version (2025-11-25)
 - No authentication mechanism
 - Localhost-only connections
@@ -127,6 +173,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tools must complete before next frame
 
 ### Future Roadmap
+
 - Additional Unity tools (assets, build, etc.)
 - Authentication and authorization
 - WebSocket transport option
@@ -137,6 +184,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Planned
+
 - Asset management tools
 - Build automation tools
 - Prefab manipulation tools
@@ -149,6 +197,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Test runner integration
 
 ### Under Consideration
+
 - WebSocket transport
 - HTTP REST endpoints
 - stdin/stdout transport (for subprocess mode)
@@ -162,20 +211,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## Version History
+## Infrastructure
 
 ### Version Numbering
+
 - MAJOR: Breaking changes to MCP protocol or API
 - MINOR: New features, backward compatible
 - PATCH: Bug fixes, backward compatible
 
 ### Support Policy
+
 - Current version: Full support
 - Previous minor: Security fixes
 - Older versions: Community support only
 
 ### Upgrade Guide
-N/A - Initial release
+
+- From 1.0.0 to 1.1.0: Files have been moved to subdirectories. Update your project structure or re-import the package.
 
 ---
 
