@@ -1,5 +1,9 @@
 # Unity MCP Server
 
+[![Check Compilation](https://github.com/unity-mcp/unity-mcp-server/actions/workflows/check_compilation.yml/badge.svg)](https://github.com/unity-mcp/unity-mcp-server/actions/workflows/check_compilation.yml)
+[![Static Analysis](https://github.com/unity-mcp/unity-mcp-server/actions/workflows/static_analysis.yml/badge.svg)](https://github.com/unity-mcp/unity-mcp-server/actions/workflows/static_analysis.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A complete Model Context Protocol (MCP) server implementation for Unity Editor that enables AI assistants and LLMs to interact with Unity projects programmatically.
 
 ## Overview
