@@ -12,11 +12,11 @@ namespace UnityMCP.Tests
         {
             string json = "{\"jsonrpc\": \"2.0\", \"method\": \"ping\", \"id\": 1}";
             var message = McpMessage.ParseRequest(json);
-            
-            Assert.IsInstanceOf<McpRequest>(message);
+
+            Assert.That(message, Is.InstanceOf<McpRequest>());
             var request = (McpRequest)message;
-            Assert.AreEqual("ping", request.Method);
-            Assert.AreEqual(1, ((System.Text.Json.JsonElement)request.Id).GetInt32());
+            Assert.That(request.Method, Is.EqualTo("ping"));
+            Assert.That(((System.Text.Json.JsonElement)request.Id).GetInt32(), Is.EqualTo(1));
         }
 
         [Test]
@@ -24,9 +24,9 @@ namespace UnityMCP.Tests
         {
             var response = McpMessage.CreateErrorResponse(1, -32601, "Method not found");
             string json = McpMessage.SerializeResponse(response);
-            
-            Assert.IsTrue(json.Contains("\"code\":-32601"));
-            Assert.IsTrue(json.Contains("\"message\":\"Method not found\""));
+
+            Assert.That(json.Contains("\"code\":-32601"), Is.True);
+            Assert.That(json.Contains("\"message\":\"Method not found\""), Is.True);
         }
     }
 }

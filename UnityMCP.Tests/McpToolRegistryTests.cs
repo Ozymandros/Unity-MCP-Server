@@ -15,9 +15,9 @@ namespace UnityMCP.Tests
             // or in the referenced Core assembly.
             McpToolRegistry.RegisterAllTools();
             var tools = McpToolRegistry.GetAllTools();
-            
-            Assert.IsNotNull(tools);
-            Assert.GreaterOrEqual(tools.Length, 0);
+
+            Assert.That(tools, Is.Not.Null);
+            Assert.That(tools.Length, Is.GreaterThanOrEqualTo(0));
         }
     }
 
@@ -27,7 +27,7 @@ namespace UnityMCP.Tests
         public string GetName() => "mock_tool";
         public string GetDescription() => "A mock tool for testing";
         public object GetInputSchema() => new { };
-        public object Execute(System.Text.Json.JsonElement parameters) 
+        public object Execute(System.Text.Json.JsonElement parameters)
             => "Mock success";
     }
 }

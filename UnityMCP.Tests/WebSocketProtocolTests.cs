@@ -12,9 +12,9 @@ namespace UnityMCP.Tests
         [Test]
         public void Server_IsRunning_ReturnsFalseBeforeStart()
         {
-            Assert.IsFalse(McpServer.IsRunning());
+            Assert.That(McpServer.IsRunning(), Is.False);
         }
-        
+
         // Add more networking tests here if separable from Unity
     }
 }

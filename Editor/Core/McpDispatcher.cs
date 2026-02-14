@@ -44,15 +44,15 @@ namespace UnityMCP
                 // Validate request
                 if (request == null)
                 {
-                    return McpMessage.CreateErrorResponse(null, 
-                        McpMessage.ErrorCodes.InvalidRequest, 
+                    return McpMessage.CreateErrorResponse(null,
+                        McpMessage.ErrorCodes.InvalidRequest,
                         "Request is null");
                 }
 
                 if (string.IsNullOrEmpty(request.Method))
                 {
-                    return McpMessage.CreateErrorResponse(request.Id, 
-                        McpMessage.ErrorCodes.InvalidRequest, 
+                    return McpMessage.CreateErrorResponse(request.Id,
+                        McpMessage.ErrorCodes.InvalidRequest,
                         "Invalid Request: missing method");
                 }
 
@@ -65,8 +65,8 @@ namespace UnityMCP
                 // Look up tool in registry by method name
                 if (!McpToolRegistry.TryGetTool(request.Method, out var tool))
                 {
-                    return McpMessage.CreateErrorResponse(request.Id, 
-                        McpMessage.ErrorCodes.MethodNotFound, 
+                    return McpMessage.CreateErrorResponse(request.Id,
+                        McpMessage.ErrorCodes.MethodNotFound,
                         $"Method not found: {request.Method}");
                 }
 
@@ -92,9 +92,9 @@ namespace UnityMCP
             catch (Exception ex)
             {
                 Debug.LogError($"[McpDispatcher] Error dispatching request: {ex.Message}\n{ex.StackTrace}");
-                return McpMessage.CreateErrorResponse(request.Id, 
-                    McpMessage.ErrorCodes.InternalError, 
-                    "Internal error", 
+                return McpMessage.CreateErrorResponse(request.Id,
+                    McpMessage.ErrorCodes.InternalError,
+                    "Internal error",
                     ex.Message);
             }
         }
@@ -117,8 +117,8 @@ namespace UnityMCP
                 string toolName = nameElement.GetString();
 
                 // Get tool arguments
-                var toolParams = request.Params.TryGetProperty("arguments", out var argsElement) 
-                    ? argsElement 
+                var toolParams = request.Params.TryGetProperty("arguments", out var argsElement)
+                    ? argsElement
                     : default;
 
                 // Look up tool

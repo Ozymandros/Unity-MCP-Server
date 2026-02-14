@@ -17,13 +17,13 @@
   ],
   "author": {
     "name": "Unity MCP Contributors",
-    "url": "https://github.com/unity-mcp/unity-mcp-server"
+    "url": "https://github.com/ozymandros/unity-mcp-server"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/unity-mcp/unity-mcp-server.git"
+    "url": "https://github.com/ozymandros/unity-mcp-server.git"
   },
-  "documentationUrl": "https://github.com/unity-mcp/unity-mcp-server/blob/main/Documentation~/README.md",
+  "documentationUrl": "https://github.com/ozymandros/unity-mcp-server/blob/main/Documentation~/README.md",
   "dependencies": {},
   "samples": [
     {

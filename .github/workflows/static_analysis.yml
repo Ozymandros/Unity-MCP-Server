@@ -20,5 +20,8 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      - name: Restore dependencies
+        run: dotnet restore UnityServer.sln
+
       - name: Verify Formatting
-        run: dotnet format --verify-no-changes --verbosity diagnostic
+        run: dotnet format UnityServer.sln --verify-no-changes --verbosity diagnostic

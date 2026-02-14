@@ -14,9 +14,9 @@ namespace UnityEngine
 
     [AttributeUsage(AttributeTargets.Field)]
     public class SerializeField : Attribute { }
-    
+
     [AttributeUsage(AttributeTargets.Method)]
-    public class RuntimeInitializeOnLoadMethodAttribute : Attribute 
+    public class RuntimeInitializeOnLoadMethodAttribute : Attribute
     {
         public RuntimeInitializeLoadType LoadType { get; set; }
         public RuntimeInitializeOnLoadMethodAttribute(RuntimeInitializeLoadType type) { LoadType = type; }
@@ -28,7 +28,7 @@ namespace UnityEngine
 
 namespace UnityEditor
 {
-    public class EditorWindow : UnityEngine.MonoBehaviour 
+    public class EditorWindow : UnityEngine.MonoBehaviour
     {
         public static T GetWindow<T>(string title) where T : EditorWindow => null;
         public void Show() { }
@@ -41,7 +41,7 @@ namespace UnityEditor
     public class InitializeOnLoadMethodAttribute : Attribute { }
 
     [AttributeUsage(AttributeTargets.Method)]
-    public class MenuItemAttribute : Attribute 
+    public class MenuItemAttribute : Attribute
     {
         public MenuItemAttribute(string path) { }
     }

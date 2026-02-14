@@ -216,7 +216,7 @@ namespace UnityMCP
             try
             {
                 McpRequest request = McpMessage.ParseRequest(jsonRequest);
-                
+
                 // Handle special MCP protocol methods
                 if (request.Method == "initialize")
                 {
