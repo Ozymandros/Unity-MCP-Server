@@ -1,6 +1,6 @@
-# Unity MCP Server
+# Unity MCP Server v1.1.0
 
-[![Check Compilation](https://github.com/unity-mcp/unity-mcp-server/actions/workflows/check_compilation.yml/badge.svg)](https://github.com/unity-mcp/unity-mcp-server/actions/workflows/check_compilation.yml)
+[![.NET CI](https://github.com/unity-mcp/unity-mcp-server/actions/workflows/dotnet.yml/badge.svg)](https://github.com/unity-mcp/unity-mcp-server/actions/workflows/dotnet.yml)
 [![Static Analysis](https://github.com/unity-mcp/unity-mcp-server/actions/workflows/static_analysis.yml/badge.svg)](https://github.com/unity-mcp/unity-mcp-server/actions/workflows/static_analysis.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -520,6 +520,17 @@ class UnityMCPClient {
 - Main thread queue processes all Unity API calls
 - Multiple clients can connect simultaneously
 - Buffer size: 8192 bytes (configurable)
+
+## CI/CD Workflows
+
+The project includes a comprehensive suite of GitHub Actions for automated validation:
+
+- **.NET CI**: Validates core logic using a license-free strategy.
+- **Static Analysis**: Ensures code formatting remains consistent.
+- **Schema Validation**: Checks `package.json` and protocol compliance.
+- **UPM Packaging**: Automates releases for the Unity Package Manager.
+
+For detailed information on the CI setup and building locally, see the [CI/CD Documentation](Documentation~/CI_CD.md).
 
 ## Security Considerations
 

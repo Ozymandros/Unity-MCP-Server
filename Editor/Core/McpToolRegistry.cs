@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json;
+#if UNITY_EDITOR
 using UnityEditor;
+#endif
 using UnityEngine;
 
 namespace UnityMCP
@@ -13,10 +15,14 @@ namespace UnityMCP
     /// </summary>
     public static class McpToolRegistry
     {
+        public const string VERSION = "1.1.0";
+        public const string MODIFICATION_DATE = "2026-02-14";
         private static readonly Dictionary<string, IMcpTool> _tools = new Dictionary<string, IMcpTool>();
         private static bool _initialized = false;
 
+#if UNITY_EDITOR
         [InitializeOnLoadMethod]
+#endif
         private static void Initialize()
         {
             if (_initialized) return;
@@ -24,13 +30,13 @@ namespace UnityMCP
             // Auto-register all tools implementing IMcpTool
             RegisterAllTools();
             _initialized = true;
-            Debug.Log($"[McpToolRegistry] Registered {_tools.Count} tools");
+            Debug.Log($"[McpToolRegistry] Registered {_tools.Count} tools v{VERSION}");
         }
 
         /// <summary>
         /// Register all tools found via reflection.
         /// </summary>
-        private static void RegisterAllTools()
+        public static void RegisterAllTools()
         {
             // Find all types implementing IMcpTool in all loaded assemblies
             var assemblies = AppDomain.CurrentDomain.GetAssemblies();

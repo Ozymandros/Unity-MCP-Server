@@ -63,6 +63,9 @@ namespace UnityMCP
     /// </summary>
     public static class McpMessage
     {
+        public const string VERSION = "1.1.0";
+        public const string MODIFICATION_DATE = "2026-02-14";
+
         private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,

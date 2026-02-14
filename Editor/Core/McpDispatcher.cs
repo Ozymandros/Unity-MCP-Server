@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+#if UNITY_EDITOR
 using UnityEditor;
+#endif
 using UnityEngine;
 
 namespace UnityMCP
@@ -11,19 +13,25 @@ namespace UnityMCP
     /// </summary>
     public static class McpDispatcher
     {
+        private const string VERSION = "1.1.0";
+        private const string MODIFICATION_DATE = "2026-02-14";
         private static readonly Queue<Action> _mainThreadQueue = new Queue<Action>();
         private static readonly object _queueLock = new object();
         private static bool _initialized = false;
 
+#if UNITY_EDITOR
         [InitializeOnLoadMethod]
+#endif
         private static void Initialize()
         {
             if (_initialized) return;
 
+#if UNITY_EDITOR
             // Subscribe to EditorApplication.update to process main thread queue
             EditorApplication.update += ProcessMainThreadQueue;
+#endif
             _initialized = true;
-            Debug.Log("[McpDispatcher] Initialized");
+            Debug.Log($"[McpDispatcher] Initialized v{VERSION}");
         }
 
         /// <summary>
@@ -181,7 +189,7 @@ namespace UnityMCP
         /// Process queued actions on the Unity main thread.
         /// Called from EditorApplication.update.
         /// </summary>
-        private static void ProcessMainThreadQueue()
+        public static void ProcessMainThreadQueue()
         {
             // Process all queued actions
             lock (_queueLock)

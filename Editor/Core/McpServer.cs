@@ -4,7 +4,9 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+#if UNITY_EDITOR
 using UnityEditor;
+#endif
 using UnityEngine;
 
 namespace UnityMCP
@@ -13,7 +15,9 @@ namespace UnityMCP
     /// Main MCP server that listens for TCP connections and processes JSON-RPC messages.
     /// Runs only in Unity Editor mode.
     /// </summary>
+#if UNITY_EDITOR
     [InitializeOnLoad]
+#endif
     public class McpServer
     {
         private static TcpListener _listener;
@@ -21,15 +25,19 @@ namespace UnityMCP
         private static bool _isRunning;
         private const int DEFAULT_PORT = 8765;
         private const string SERVER_NAME = "Unity MCP Server";
-        private const string SERVER_VERSION = "1.0.0";
+        private const string SERVER_VERSION = "1.1.0";
+        private const string MODIFICATION_DATE = "2026-02-14";
 
         static McpServer()
         {
+#if UNITY_EDITOR
             EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
             EditorApplication.quitting += OnEditorQuitting;
             StartServer();
+#endif
         }
 
+#if UNITY_EDITOR
         private static void OnPlayModeStateChanged(PlayModeStateChange state)
         {
             // Keep server running during play mode transitions
@@ -54,6 +62,7 @@ namespace UnityMCP
         {
             StopServer();
         }
+#endif
 
         public static void StartServer(int port = DEFAULT_PORT)
         {
