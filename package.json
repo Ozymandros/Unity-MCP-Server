@@ -16,9 +16,15 @@
     "Tools"
   ],
   "author": {
-    "name": "Unity MCP Contributors"
+    "name": "Unity MCP Contributors",
+    "url": "https://github.com/unity-mcp/unity-mcp-server"
   },
   "type": "tool",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/unity-mcp/unity-mcp-server.git"
+  },
+  "documentationUrl": "https://github.com/unity-mcp/unity-mcp-server/blob/main/Documentation~/README.md",
   "dependencies": {},
   "samples": [
     {

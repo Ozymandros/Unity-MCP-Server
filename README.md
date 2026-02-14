@@ -57,18 +57,19 @@ The Unity MCP Server provides a standardized JSON-RPC 2.0 interface for external
    ```
    Assets/
    └── UnityMCP/
-       └── Editor/
-           ├── Core/
-           │   ├── McpServer.cs
-           │   ├── McpMessage.cs
-           │   ├── McpDispatcher.cs
-           │   └── McpToolRegistry.cs
-           └── Tools/
-               ├── PingTool.cs
-               ├── CreateSceneTool.cs
-               ├── CreateGameObjectTool.cs
-               ├── GetSceneInfoTool.cs
-               └── CreateScriptTool.cs
+       ├── Editor/
+       │   ├── Core/
+       │   │   ├── McpServer.cs
+       │   │   ├── McpMessage.cs
+       │   │   ├── McpDispatcher.cs
+       │   │   └── McpToolRegistry.cs
+       │   └── Tools/
+       │       ├── PingTool.cs
+       │       ├── CreateSceneTool.cs
+       │       ├── CreateGameObjectTool.cs
+       │       ├── GetSceneInfoTool.cs
+       │       └── CreateScriptTool.cs
+       └── package.json
    ```
 
 2. **Verify Installation**:
@@ -85,7 +86,7 @@ The Unity MCP Server provides a standardized JSON-RPC 2.0 interface for external
 - **Buffer Size**: 8192 bytes
 
 ### Changing Port
-Edit `McpServer.cs`:
+Edit `Editor/Core/McpServer.cs`:
 ```csharp
 private const int DEFAULT_PORT = 8765; // Change to your desired port
 ```
@@ -529,7 +530,7 @@ class UnityMCPClient {
 
 To add new tools:
 1. Create a new class implementing `IMcpTool` or extending `BaseMcpTool`
-2. Place in `Assets/UnityMCP/Editor/Tools/`
+2. Place in `Editor/Tools/` (or any Editor folder)
 3. Tool will auto-register on next Unity compile
 
 ## License
