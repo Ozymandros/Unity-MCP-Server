@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>UnityMCP</RootNamespace>
+    <AssemblyName>UnityMCP.Core</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Editor/Core/*.cs" />
+    <Compile Include="Editor/Core/Stubs/*.cs" />
+    <Compile Include="Editor/Tools/*.cs" Exclude="Editor/Tools/CreateSceneTool.cs;Editor/Tools/CreateGameObjectTool.cs;Editor/Tools/GetSceneInfoTool.cs;Editor/Tools/CreateScriptTool.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="8.0.0" />
+  </ItemGroup>
+</Project>

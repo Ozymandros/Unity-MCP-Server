@@ -9,17 +9,10 @@
 /[Uu]ser[Ss]ettings/
 
 # Visual Studio / VS Code
-.vs/
-.vscode/
-*.csproj
-*.unityproj
-*.sln
-*.suo
 *.tmp
 *.user
 *.userprefs
 *.pidb
-*.booproj
 *.svd
 *.pdb
 *.opendb
