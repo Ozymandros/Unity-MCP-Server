@@ -1,6 +1,0 @@
-<Solution>
-	<ProjectReference Path="StandaloneMCP/StandaloneMCP.csproj" />
-	<ProjectReference Path="UnityMCP.Server/UnityMCP.Server.csproj" />
-	<ProjectReference Path="UnityMCP.Core.csproj" />
-	<ProjectReference Path="UnityMCP.Tests/UnityMCP.Tests.csproj" />
-</Solution>

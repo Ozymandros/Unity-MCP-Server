@@ -1,0 +1,8 @@
+services:
+  unity-mcp:
+    build: .
+    volumes:
+      - ./MyUnityProject:/project
+    entrypoint: ["dotnet", "UnityMcp.Server.dll", "--path", "/project"]
+    stdin_open: true # Keep stdin open for MCP
+    tty: true        # Allocate pseudo-TTY

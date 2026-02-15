@@ -36,7 +36,6 @@ venv/
 
 # Node.js
 node_modules/
-*.log
-*.txt
+npm-debug.log
 **/bin/
 .vs
