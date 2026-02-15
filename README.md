@@ -92,6 +92,7 @@ You can develop and run the MCP Server in a fully containerized environment usin
 - **UnityMcp.Core/**: Core server logic (no Unity dependencies)
 - **UnityMcp.Tests/**: Test suite for core and server logic
 - **QUICKSTART.md**: Getting started guide
+- **SKILL.md**: AI Agent discovery and documentation
 - **Legacy/**: Archived Unity/UPM code and docs (for reference only)
 
 ---

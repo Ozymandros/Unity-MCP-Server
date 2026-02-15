@@ -35,7 +35,6 @@ dotnet test
 
 *All 9 tests should pass, verifying strict protocol compliance and service mocking.*
 
-
 ## 4. Configuration Examples
 
 ### Claude Desktop
