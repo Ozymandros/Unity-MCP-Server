@@ -1,26 +1,137 @@
-# Unity MCP Server v1.1.0
+# Unity MCP Server v1.2.0
 
 [![.NET CI](https://img.shields.io/github/actions/workflow/status/ozymandros/unity-mcp-server/dotnet.yml?branch=main&label=.NET%20CI&logo=dotnet&logoColor=white&style=flat-square)](https://github.com/ozymandros/unity-mcp-server/actions/workflows/dotnet.yml)
 [![Quality](https://img.shields.io/github/actions/workflow/status/ozymandros/unity-mcp-server/static_analysis.yml?branch=main&label=Quality&logo=github-actions&logoColor=white&style=flat-square)](https://github.com/ozymandros/unity-mcp-server/actions/workflows/static_analysis.yml)
 [![Schema](https://img.shields.io/github/actions/workflow/status/ozymandros/unity-mcp-server/schema_validation.yml?branch=main&label=Schema&logo=json&logoColor=white&style=flat-square)](https://github.com/ozymandros/unity-mcp-server/actions/workflows/schema_validation.yml)
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-orange?style=flat-square&logo=json)](https://modelcontextprotocol.io)
 [![UPM](https://img.shields.io/badge/Unity-2021.3%2B-black?logo=unity&logoColor=white&style=flat-square)](https://docs.unity3d.com/Manual/index.html)
-[![Version](https://img.shields.io/badge/UPM-1.1.0-blue?style=flat-square)](https://github.com/ozymandros/unity-mcp-server/releases)
+[![Version](https://img.shields.io/badge/UPM-1.2.0-blue?style=flat-square)](https://github.com/ozymandros/unity-mcp-server/releases)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square&logo=opensourceinitiative&logoColor=white)](https://opensource.org/licenses/MIT)
 
-A complete Model Context Protocol (MCP) server implementation for Unity Editor that enables AI assistants and LLMs to interact with Unity projects programmatically.
+A complete Model Context Protocol (MCP) server for Unity Editor and .NET. Enables AI assistants and LLMs to interact with Unity projects or standalone .NET servers via JSON-RPC 2.0.
 
-## Overview
-
-The Unity MCP Server provides a standardized JSON-RPC 2.0 interface for external applications to control and query Unity Editor. This enables powerful AI-assisted workflows for game development, scene creation, scripting, and more.
+---
 
 ## Features
+- **Skill-based architecture**: Easily add new tools/skills for automation and integration.
+- **JSON-RPC over TCP**: Standard protocol for interoperability with clients (Node.js, Python, Semantic Kernel, etc).
+- **Unity and .NET support**: Use as a Unity Editor extension or as a standalone .NET server.
+- **Docker & DevContainer ready**: Run in containers for CI/CD or cloud workflows.
+- **Comprehensive test suite**: Ensures reliability and correctness.
 
-- **MCP Protocol Compliant**: Implements the Model Context Protocol specification (2025-11-25)
-- **JSON-RPC 2.0**: Standard request/response messaging over TCP
-- **Thread-Safe**: Ensures all Unity API calls execute on the main thread
-- **Tool Registry**: Dynamic tool discovery and registration via reflection
-- **Multiple Tools**: Pre-built tools for common Unity operations
+---
+
+## Quick Start
+
+Get up and running in minutes!
+
+### Prerequisites
+- Unity Editor 2020.3 or later (for Unity integration)
+- .NET 10.0 SDK (for standalone/.NET usage)
+- Python 3.7+ or Node.js 14+ (for client examples)
+
+### Installation (Unity)
+1. Copy the entire `UnityMCP` folder to your Unity project:
+   ```
+   YourUnityProject/Assets/UnityMCP/
+   ```
+2. Wait for Unity to compile scripts. Check Console for:
+   ```
+   [McpToolRegistry] Registered 5 tools
+   [McpServer] Unity MCP Server v1.2.0 started on port 8765
+   ```
+
+### Installation (.NET/Standalone)
+1. Clone this repo and build:
+   ```sh
+   dotnet build UnityMCP.sln
+   ```
+2. Run the server:
+   ```sh
+   dotnet run --project UnityMCP.Server
+   ```
+
+### Test Connection
+- **Python:**
+  ```python
+  import socket, json
+  sock = socket.socket(); sock.connect(('localhost', 8765))
+  req = {"jsonrpc": "2.0", "id": "1", "method": "ping", "params": {}}
+  sock.send((json.dumps(req) + "\n").encode()); print(sock.recv(1024).decode()); sock.close()
+  ```
+- **Command Line:**
+  ```powershell
+  echo '{"jsonrpc":"2.0","id":"1","method":"ping","params":{}}' | ncat localhost 8765
+  ```
+
+---
+
+## VS Code Dev Container & Docker
+
+You can develop and run the Unity MCP Server in a fully containerized environment using VS Code Dev Containers and Docker.
+
+### Dev Container (VS Code)
+- Open the project in VS Code
+- If prompted, "Reopen in Container" (requires Docker)
+- The `.devcontainer/devcontainer.json` configures the environment with .NET SDK, PowerShell, and C# extensions
+- Port 8765 is forwarded for MCP connections
+
+### Docker (Standalone)
+- Build the Docker image:
+  ```sh
+  docker build -t unity-mcp-server .
+  ```
+- Run the server in a container:
+  ```sh
+  docker run -p 8765:8765 unity-mcp-server
+  ```
+- The server will be accessible on `localhost:8765` from your host
+
+---
+
+## Version History
+
+- **1.2.0** (2026-02-15)
+  - Major documentation and protocol improvements
+  - Unified .NET/Unity install and quickstart
+  - Expanded API and troubleshooting docs
+  - Added VS Code DevContainer and Docker support
+- **1.1.0** (2026-02-14)
+  - License-free CI/CD pipeline
+  - Standalone test suite and solution reorg
+- **1.0.0** (2025-02-14)
+  - Initial release with core MCP protocol and 5 tools
+
+---
+
+## Troubleshooting
+- **Server already running:** Restart Unity Editor.
+- **Port already in use:** Change port in config or close other app.
+- **No tools registered:** Check file locations and namespaces.
+- **Connection timeout:** Check firewall and allow Unity/port 8765.
+- **Script errors:** Ensure Unity 2020.3+ and System.Text.Json support.
+
+---
+
+## CI/CD Workflows
+- **.NET CI:** Validates core logic and runs tests on every push/PR.
+- **Static Analysis:** Checks code formatting and style.
+- **Schema Validation:** Ensures package.json and UPM compliance.
+- **UPM Packaging:** Automates Unity Package Manager releases.
+
+See [Documentation~/CI_CD.md](Documentation~/CI_CD.md) for details.
+
+---
+
+## Project Structure
+- **UnityMCP.Server/**: Standalone .NET server entry point
+- **StandaloneMCP/**: Core server logic, no Unity dependencies
+- **UnityMCP.Core/**: Unity Editor integration (not required for standalone)
+- **UnityMCP.Tests/**: Test suite for core and server logic
+- **skills/**: MCP skill manifest and documentation
+- **Documentation~/**: Architecture, API reference, CI/CD, installation, and quickstart docs
+
+---
 
 ## Architecture
 
@@ -36,7 +147,7 @@ The Unity MCP Server provides a standardized JSON-RPC 2.0 interface for external
 │  ┌──────────────────────────────┐   │
 │  │     McpServer                │   │
 │  │  (TCP Listener & Router)     │   │
-│  └──────────┬───────────────────┘   │
+│  └──────────┬─────────────────────────┘   │
 │             │                        │
 │  ┌──────────▼───────────────────┐   │
 │  │     McpDispatcher            │   │
@@ -59,175 +170,18 @@ The Unity MCP Server provides a standardized JSON-RPC 2.0 interface for external
 └─────────────────────────────────────┘
 ```
 
-## Installation
+---
 
-1. **Copy Files to Unity Project**:
-   ```
-   Assets/
-   └── UnityMCP/
-       ├── Editor/
-       │   ├── Core/
-       │   │   ├── McpServer.cs
-       │   │   ├── McpMessage.cs
-       │   │   ├── McpDispatcher.cs
-       │   │   └── McpToolRegistry.cs
-       │   └── Tools/
-       │       ├── PingTool.cs
-       │       ├── CreateSceneTool.cs
-       │       ├── CreateGameObjectTool.cs
-       │       ├── GetSceneInfoTool.cs
-       │       └── CreateScriptTool.cs
-       └── package.json
-   ```
+## Protocol & API Reference
 
-2. **Verify Installation**:
-   - Open Unity Editor
-   - Check Console for: `[McpServer] Unity MCP Server v1.0.0 started on port 8765`
-   - Verify registered tools: `[McpToolRegistry] Registered 5 tools`
+> **See also:** [Documentation~/API_REFERENCE.md](Documentation~/API_REFERENCE.md) for the full, always-up-to-date protocol and tool documentation.
 
-## Configuration
+### MCP Protocol Methods
 
-### Default Settings
-- **Port**: 8765
-- **Protocol**: JSON-RPC 2.0
-- **Transport**: TCP (localhost only)
-- **Buffer Size**: 8192 bytes
+#### initialize
+Establishes the MCP connection and exchanges capabilities.
 
-### Changing Port
-Edit `Editor/Core/McpServer.cs`:
-```csharp
-private const int DEFAULT_PORT = 8765; // Change to your desired port
-```
-
-## Available Tools
-
-### 1. Ping Tool
-**Method**: `ping`
-
-Tests connectivity with the MCP server.
-
-**Request**:
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "1",
-  "method": "ping",
-  "params": {
-    "message": "optional echo message"
-  }
-}
-```
-
-**Response**:
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "1",
-  "result": {
-    "message": "pong",
-    "echo": "optional echo message",
-    "timestamp": "2025-02-14T10:30:00.000Z"
-  }
-}
-```
-
-### 2. Create Scene Tool
-**Method**: `create_scene`
-
-Creates a new Unity scene.
-
-**Request**:
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "2",
-  "method": "create_scene",
-  "params": {
-    "name": "MyNewScene",
-    "path": "Assets/Scenes",
-    "setup": "default"
-  }
-}
-```
-
-**Response**:
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "2",
-  "result": {
-    "success": true,
-    "path": "Assets/Scenes/MyNewScene.unity",
-    "name": "MyNewScene",
-    "setup": "default",
-    "objectCount": 2,
-    "message": "Scene 'MyNewScene' created successfully"
-  }
-}
-```
-
-### 3. Create GameObject Tool
-**Method**: `create_gameobject`
-
-Creates GameObjects in the active scene.
-
-**Request**:
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "3",
-  "method": "create_gameobject",
-  "params": {
-    "name": "MyCube",
-    "type": "cube",
-    "position": { "x": 0, "y": 1, "z": 0 }
-  }
-}
-```
-
-### 4. Get Scene Info Tool
-**Method**: `get_scene_info`
-
-Retrieves information about the current scene.
-
-**Request**:
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "4",
-  "method": "get_scene_info",
-  "params": {
-    "includeHierarchy": true,
-    "includeComponents": false
-  }
-}
-```
-
-### 5. Create Script Tool
-**Method**: `create_script`
-
-Creates C# script files.
-
-**Request**:
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "5",
-  "method": "create_script",
-  "params": {
-    "name": "PlayerController",
-    "type": "monobehaviour",
-    "namespace": "Game.Controllers"
-  }
-}
-```
-
-## MCP Protocol Methods
-
-### Initialize
 **Method**: `initialize`
-
-Required handshake when connecting.
 
 **Request**:
 ```json
@@ -237,14 +191,10 @@ Required handshake when connecting.
   "method": "initialize",
   "params": {
     "protocolVersion": "2025-11-25",
-    "clientInfo": {
-      "name": "My MCP Client",
-      "version": "1.0.0"
-    }
+    "clientInfo": { "name": "Client Name", "version": "1.0.0" }
   }
 }
 ```
-
 **Response**:
 ```json
 {
@@ -252,21 +202,16 @@ Required handshake when connecting.
   "id": "init",
   "result": {
     "protocolVersion": "2025-11-25",
-    "serverInfo": {
-      "name": "Unity MCP Server",
-      "version": "1.0.0"
-    },
-    "capabilities": {
-      "tools": {}
-    }
+    "serverInfo": { "name": "Unity MCP Server", "version": "1.2.0" },
+    "capabilities": { "tools": {} }
   }
 }
 ```
 
-### Tools List
-**Method**: `tools/list`
+#### tools/list
+Lists all registered tools with their schemas.
 
-Lists all available tools.
+**Method**: `tools/list`
 
 **Request**:
 ```json
@@ -277,7 +222,6 @@ Lists all available tools.
   "params": {}
 }
 ```
-
 **Response**:
 ```json
 {
@@ -288,18 +232,17 @@ Lists all available tools.
       {
         "name": "ping",
         "description": "Simple ping test",
-        "inputSchema": { /* JSON Schema */ }
-      },
-      // ... other tools
+        "inputSchema": { "type": "object", "properties": { "message": { "type": "string", "description": "Optional message to echo" } } }
+      }
     ]
   }
 }
 ```
 
-### Tools Call (Standard MCP Format)
-**Method**: `tools/call`
+#### tools/call
+Calls a tool using the standard MCP format.
 
-Executes a tool using standard MCP format.
+**Method**: `tools/call`
 
 **Request**:
 ```json
@@ -309,269 +252,216 @@ Executes a tool using standard MCP format.
   "method": "tools/call",
   "params": {
     "name": "create_scene",
-    "arguments": {
-      "name": "TestScene"
-    }
+    "arguments": { "name": "MyScene" }
+  }
+}
+```
+**Response**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "call",
+  "result": {
+    "content": [ { "type": "text", "text": "{\"success\":true,\"path\":\"Assets/Scenes/MyScene.unity\"}" } ]
   }
 }
 ```
 
-## Creating Custom Tools
+---
 
-### Basic Tool Structure
+## Built-in Tools
 
-```csharp
-using System.Text.Json;
-using UnityEngine;
+### ping
+Tests server connectivity and responsiveness.
 
-namespace UnityMCP
+**Method**: `ping`
+
+**Parameters**:
+- `message` (string, optional): Message to echo back
+
+**Request**:
+```json
 {
-    public class MyCustomTool : BaseMcpTool
-    {
-        public override string GetName()
-        {
-            return "my_custom_tool";
-        }
-
-        public override string GetDescription()
-        {
-            return "Description of what this tool does";
-        }
-
-        public override object GetInputSchema()
-        {
-            return new
-            {
-                type = "object",
-                properties = new
-                {
-                    param1 = new
-                    {
-                        type = "string",
-                        description = "Description of param1"
-                    }
-                },
-                required = new[] { "param1" }
-            };
-        }
-
-        public override object Execute(JsonElement parameters)
-        {
-            try
-            {
-                string param1 = GetStringParam(parameters, "param1");
-                
-                // Your tool logic here
-                
-                return new
-                {
-                    success = true,
-                    result = "Your result data"
-                };
-            }
-            catch (System.Exception ex)
-            {
-                Debug.LogError($"[MyCustomTool] Error: {ex.Message}");
-                return new
-                {
-                    success = false,
-                    error = ex.Message
-                };
-            }
-        }
-    }
+  "jsonrpc": "2.0",
+  "id": "1",
+  "method": "ping",
+  "params": { "message": "Hello" }
+}
+```
+**Response**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "1",
+  "result": { "message": "pong", "echo": "Hello", "timestamp": "2025-02-14T10:30:00.000Z" }
 }
 ```
 
-Tools are automatically discovered and registered via reflection when Unity loads.
+### create_scene
+Creates a new Unity scene file.
 
-## Client Examples
+**Method**: `create_scene`
 
-### Python Client
+**Parameters**:
+- `name` (string, required): Scene name
+- `path` (string, optional): Path to save scene (default: "Assets/Scenes")
+- `setup` (string, optional): Scene setup type - "default" or "empty" (default: "default")
 
+**Request**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "2",
+  "method": "create_scene",
+  "params": { "name": "MainMenu", "path": "Assets/Scenes", "setup": "default" }
+}
+```
+**Response**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "2",
+  "result": { "success": true, "path": "Assets/Scenes/MainMenu.unity", "name": "MainMenu", "setup": "default", "objectCount": 2, "message": "Scene 'MainMenu' created successfully at Assets/Scenes/MainMenu.unity" }
+}
+```
+
+### create_gameobject
+Creates a GameObject in the active scene.
+
+**Method**: `create_gameobject`
+
+**Parameters**:
+- `name` (string, required): GameObject name
+- `type` (string, required): Object type - "empty", "cube", "sphere", "capsule", "cylinder", "plane", "quad"
+- `position` (object, optional): World position {x, y, z}
+- `parent` (string, optional): Parent GameObject name
+
+**Request**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "3",
+  "method": "create_gameobject",
+  "params": { "name": "Player", "type": "cube", "position": { "x": 0, "y": 1, "z": 0 } }
+}
+```
+**Response**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "3",
+  "result": { "success": true, "name": "Player", "instanceId": 12345, "type": "cube", "position": { "x": 0.0, "y": 1.0, "z": 0.0 }, "message": "GameObject 'Player' created successfully" }
+}
+```
+
+### get_scene_info
+Retrieves detailed information about the active scene.
+
+**Method**: `get_scene_info`
+
+**Parameters**:
+- `includeHierarchy` (boolean, optional): Include full GameObject hierarchy (default: true)
+- `includeComponents` (boolean, optional): Include component information (default: false)
+
+**Request**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "4",
+  "method": "get_scene_info",
+  "params": { "includeHierarchy": true, "includeComponents": false }
+}
+```
+**Response**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "4",
+  "result": { "success": true, "name": "SampleScene", "path": "Assets/Scenes/SampleScene.unity", "isLoaded": true, "isDirty": false, "buildIndex": 0, "rootCount": 3, "totalObjectCount": 5, "rootObjects": [ { "name": "Main Camera", "tag": "MainCamera", "layer": "Default", "active": true, "static": false, "instanceId": 1234, "position": { "x": 0, "y": 1, "z": -10 } } ] }
+}
+```
+
+### create_script
+Creates a C# script file in the project.
+
+**Method**: `create_script`
+
+**Parameters**:
+- `name` (string, required): Script class name
+- `type` (string, optional): Script type - "monobehaviour", "scriptableobject", "plain", "interface" (default: "monobehaviour")
+- `path` (string, optional): Save path (default: "Assets/Scripts")
+- `namespace` (string, optional): Namespace for the script
+
+**Request**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "5",
+  "method": "create_script",
+  "params": { "name": "PlayerController", "type": "monobehaviour", "path": "Assets/Scripts/Player", "namespace": "Game.Controllers" }
+}
+```
+**Response**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "5",
+  "result": { "success": true, "path": "Assets/Scripts/Player/PlayerController.cs", "name": "PlayerController", "type": "monobehaviour", "message": "Script 'PlayerController' created successfully at Assets/Scripts/Player/PlayerController.cs" }
+}
+```
+
+---
+
+## Error Codes
+
+| Code | Name | Description |
+|------|------|-------------|
+| -32700 | Parse error | Invalid JSON |
+| -32600 | Invalid Request | Invalid request object |
+| -32601 | Method not found | Method does not exist |
+| -32602 | Invalid params | Invalid method parameters |
+| -32603 | Internal error | Internal server error |
+
+**Error Response Format**:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "1",
+  "error": { "code": -32601, "message": "Method not found: unknown_method", "data": "Additional error information" }
+}
+```
+
+---
+
+## Usage Patterns & Best Practices
+
+### Sequential Operations
+Create a scene, add objects, and verify:
 ```python
-import socket
-import json
-
-class UnityMCPClient:
-    def __init__(self, host='localhost', port=8765):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.connect((host, port))
-        self.request_id = 0
-        
-    def send_request(self, method, params=None):
-        self.request_id += 1
-        request = {
-            "jsonrpc": "2.0",
-            "id": str(self.request_id),
-            "method": method,
-            "params": params or {}
-        }
-        
-        message = json.dumps(request) + "\n"
-        self.sock.sendall(message.encode('utf-8'))
-        
-        response = self.sock.recv(8192).decode('utf-8')
-        return json.loads(response.strip())
-    
-    def close(self):
-        self.sock.close()
-
-# Usage
-client = UnityMCPClient()
-
-# Initialize
-response = client.send_request("initialize", {
-    "protocolVersion": "2025-11-25",
-    "clientInfo": {"name": "Python Client", "version": "1.0"}
-})
-print(response)
-
-# List tools
-response = client.send_request("tools/list")
-print(response)
-
-# Create scene
-response = client.send_request("create_scene", {"name": "TestScene"})
-print(response)
-
-client.close()
+client.send_request("create_scene", {"name": "Level1"})
+client.send_request("create_gameobject", {"name": "Ground", "type": "plane", "position": {"x": 0, "y": 0, "z": 0}})
+client.send_request("create_gameobject", {"name": "Player", "type": "cube", "position": {"x": 0, "y": 1, "z": 0}})
+info = client.send_request("get_scene_info", {})
 ```
 
-### JavaScript/Node.js Client
-
-```javascript
-const net = require('net');
-
-class UnityMCPClient {
-    constructor(host = 'localhost', port = 8765) {
-        this.client = new net.Socket();
-        this.client.connect(port, host);
-        this.requestId = 0;
-    }
-
-    sendRequest(method, params = {}) {
-        return new Promise((resolve, reject) => {
-            this.requestId++;
-            const request = {
-                jsonrpc: "2.0",
-                id: String(this.requestId),
-                method: method,
-                params: params
-            };
-
-            this.client.once('data', (data) => {
-                const response = JSON.parse(data.toString().trim());
-                resolve(response);
-            });
-
-            this.client.once('error', reject);
-            this.client.write(JSON.stringify(request) + '\n');
-        });
-    }
-
-    close() {
-        this.client.destroy();
-    }
-}
-
-// Usage
-(async () => {
-    const client = new UnityMCPClient();
-    
-    // Initialize
-    const initResponse = await client.sendRequest('initialize', {
-        protocolVersion: '2025-11-25',
-        clientInfo: { name: 'JS Client', version: '1.0' }
-    });
-    console.log(initResponse);
-    
-    // Create scene
-    const sceneResponse = await client.sendRequest('create_scene', {
-        name: 'TestScene'
-    });
-    console.log(sceneResponse);
-    
-    client.close();
-})();
+### Hierarchical Objects
+```python
+client.send_request("create_gameobject", {"name": "Enemy", "type": "sphere"})
+client.send_request("create_gameobject", {"name": "WeaponSlot", "type": "empty", "parent": "Enemy"})
 ```
 
-## Troubleshooting
+### Script Generation Workflow
+```python
+client.send_request("create_script", {"name": "EnemyAI", "type": "monobehaviour", "namespace": "Game.AI"})
+# Wait for Unity to compile, then use the script
+```
 
-### Server Not Starting
-- Check Unity Console for error messages
-- Ensure port 8765 is not in use
-- Verify all scripts are in correct folders
+### Best Practices
+- Always call `initialize` before using other methods
+- Check `result.success` in responses
+- Handle errors using the error codes above
+- Close connections when done
+- Validate parameters before sending
+- Use appropriate types for each tool
 
-### Connection Refused
-- Ensure Unity Editor is running
-- Check firewall settings
-- Verify server is listening: Check for "started on port" message
-
-### Tools Not Registered
-- Check Unity Console for registration messages
-- Ensure tools inherit from `IMcpTool` or `BaseMcpTool`
-- Verify tools are in correct namespace
-
-### Main Thread Errors
-- All Unity API calls must go through tools
-- Tools automatically execute on main thread
-- Never call Unity APIs directly from async code
-
-## Performance Considerations
-
-- Each client connection runs in a separate task
-- Main thread queue processes all Unity API calls
-- Multiple clients can connect simultaneously
-- Buffer size: 8192 bytes (configurable)
-
-## CI/CD Workflows
-
-The project includes a comprehensive suite of GitHub Actions for automated validation:
-
-- **.NET CI**: Validates core logic using a license-free strategy.
-- **Static Analysis**: Ensures code formatting remains consistent.
-- **Schema Validation**: Checks `package.json` and protocol compliance.
-- **UPM Packaging**: Automates releases for the Unity Package Manager.
-
-For detailed information on the CI setup and building locally, see the [CI/CD Documentation](Documentation~/CI_CD.md).
-
-## Security Considerations
-
-⚠️ **Important Security Notes**:
-- Server only listens on localhost (127.0.0.1)
-- No authentication mechanism (add if exposing remotely)
-- Runs with full Unity Editor permissions
-- Validate all input in custom tools
-- Never expose to untrusted networks
-
-## Contributing
-
-To add new tools:
-1. Create a new class implementing `IMcpTool` or extending `BaseMcpTool`
-2. Place in `Editor/Tools/` (or any Editor folder)
-3. Tool will auto-register on next Unity compile
-
-## License
-
-This implementation is provided as-is for educational and development purposes.
-
-## Resources
-
-- [Model Context Protocol Specification](https://modelcontextprotocol.io/specification/2025-11-25)
-- [JSON-RPC 2.0 Specification](https://www.jsonrpc.org/specification)
-- [Unity Editor Scripting](https://docs.unity3d.com/Manual/ExtendingTheEditor.html)
-
-## Version History
-
-- **1.1.0** (2026-02-14)
-  - Implemented license-free CI/CD pipeline using pure .NET SDK.
-  - Added standalone test suite (`UnityMCP.Tests`) with NUnit validation.
-  - Created `UnityServer.sln` and assembly stubs for offline/CI compilation.
-  - Reorganized project into standard Unity Package structure (UPM).
-  - Added comprehensive CI/CD documentation and badge system.
-- **1.0.0** (2025-02-14)
-  - Initial release with core MCP protocol support.
-  - Implemented thread-safe Unity main thread dispatcher.
-  - Automatic tool discovery and registration via reflection.
-  - Included 5 core tools for scene and object management.
+---

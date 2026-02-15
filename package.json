@@ -27,13 +27,13 @@
   "dependencies": {},
   "samples": [
     {
-      "displayName": "Python Client Example",
-      "description": "Example Python client for connecting to Unity MCP Server",
+      "displayName": "Sample Client: Python",
+      "description": "Demonstration client (Python) for connecting to the Unity MCP Server. Not part of the main server implementation.",
       "path": "Samples~/PythonClient"
     },
     {
-      "displayName": "Node.js Client Example",
-      "description": "Example Node.js client for connecting to Unity MCP Server",
+      "displayName": "Sample Client: Node.js",
+      "description": "Demonstration client (Node.js) for connecting to the Unity MCP Server. Not part of the main server implementation.",
       "path": "Samples~/NodeClient"
     }
   ]

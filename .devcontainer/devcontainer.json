@@ -1,0 +1,16 @@
+{
+  "name": "Unity MCP Dev",
+  "build": { "dockerfile": "Dockerfile" },
+  "forwardPorts": [8765],
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      },
+      "extensions": [
+        "ms-dotnettools.csharp",
+        "ms-vscode.powershell"
+      ]
+    }
+  }
+}
