@@ -1,101 +1,129 @@
-# Unity MCP Server
+# MCP Server (.NET) v1.2.0
 
-A standalone [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for Unity, built with **.NET 10.0**.
+[![.NET CI](https://img.shields.io/github/actions/workflow/status/ozymandros/unity-mcp-server/dotnet.yml?branch=main&label=.NET%20CI&logo=dotnet&logoColor=white&style=flat-square)](https://github.com/ozymandros/unity-mcp-server/actions/workflows/dotnet.yml)
+[![Quality](https://img.shields.io/github/actions/workflow/status/ozymandros/unity-mcp-server/static_analysis.yml?branch=main&label=Quality&logo=github-actions&logoColor=white&style=flat-square)](https://github.com/ozymandros/unity-mcp-server/actions/workflows/static_analysis.yml)
+[![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-orange?style=flat-square&logo=json)](https://modelcontextprotocol.io)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square&logo=opensourceinitiative&logoColor=white)](https://opensource.org/licenses/MIT)
 
-This server empowers AI assistants (like Claude Desktop) to interact with Unity projects directly. It bypasses the need for the Unity Editor to be running for many file-based operations, allowing for rapid creation and modification of Scripts, Scenes, and Assets. When necessary, it can also bridge to the Unity CLI (via `UnityEditor.dll` integration) for specialized operations.
+A pure .NET implementation of the Model Context Protocol (MCP) server. Enables AI assistants and LLMs to interact with applications via JSON-RPC 2.0 over TCP. No Unity or UPM dependencies.
 
-## 🚀 Features
+---
 
-* **Standalone Operation**: Runs as a .NET console application, independent of the Unity Editor process.
-* **Direct File Manipulation**: Fast and efficient creation of C# Scripts, Scenes (`.unity`), and other assets.
-* **Typed Protocol Handler**: Generic, strictly-typed handler system using `McpHandlerBase<TParams, TResult>` for robust request processing and validation.
-* **Data Validation**: Built-in validation using `System.ComponentModel.DataAnnotations` for all incoming tool parameters.
-* **Clean Architecture**: Designed with strictly decoupled layers (Core, Infrastructure, Application, Server) for maximum maintainability and testability.
-* **Cross-Platform**: Compatible with Windows, macOS, and Linux.
-* **Container Support**: Includes Dev Container configuration for a consistent development environment.
+## Features
+- **Extensible tool/skill architecture**: Add new automation and integration tools easily.
+- **JSON-RPC 2.0 over TCP**: Standard protocol for interoperability with any client (Node.js, Python, etc).
+- **Pure .NET**: No Unity/UPM dependencies. Runs anywhere .NET 10.0+ is supported.
+- **Docker & DevContainer ready**: Containerized for CI/CD and cloud workflows.
+- **Comprehensive test suite**: Ensures reliability and correctness.
 
-## 🛠️ Available Tools
+---
 
-The server exposes the following tools to the MCP client:
+## Quick Start
 
-| Tool | Namespace | Description |
-| :--- | :--- | :--- |
-| `create_script` | `unity` | Creates a new `MonoBehaviour` script at a specified path with a valid class name. |
-| `create_scene` | `unity` | Creates a new, empty Unity Scene file (`.unity`) with standard header. |
-| `create_asset` | `unity` | Creates a generic asset with provided text content at the specified path. |
-| `create_gameobject`| `unity` | Creates a new GameObject entry in a specified Scene (Standalone simulation). |
-| `list_assets` | `unity` | Lists files in the project's `Assets` directory (supports glob patterns). |
-| `build_project` | `unity` | Triggers a Unity project build via the command line interface. |
-| `ping` | `global` | A simple health check to verify the server is running. |
-
-## 🏗️ Architecture
-
-This project strictly adheres to **Clean Architecture** principles:
-
-1. **UnityMcp.Core**: The Domain Layer. Contains Domain Models, Value Objects, and core interfaces (`IUnityService`, `IMcpTransport`).
-2. **UnityMcp.Infrastructure**: Implementation Layer. Handles I/O, JSON-RPC transport, and the `FileUnityService` which implements Unity logic without Editor process dependency.
-3. **UnityMcp.Application**: Application Layer. Defines the `McpRouter` and strictly-typed bridge handlers that map JSON-RPC requests to domain logic.
-4. **UnityMcp.Server**: Presentation/Hosting Layer. The Composition Root using Microsoft.Extensions.Hosting.
-
-## 📦 Getting Started
+Get up and running in minutes!
 
 ### Prerequisites
-
-* [**.NET 10.0 SDK**](https://dotnet.microsoft.com/download/dotnet/10.0)
-* (Optional) **Unity Editor** (2022.3+ Recommended) for verifying generated assets.
-* (Optional) **Docker Desktop** if using the Dev Container.
+- .NET 10.0 SDK or later
+- Python 3.7+ or Node.js 14+ (for client examples)
 
 ### Installation
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/your-repo/Unity-MCP-Server.git
-   cd Unity-MCP-Server
+#### Option A: Run from Source (Development)
+1. Clone this repo and build:
+   ```sh
+   dotnet build UnityMcpServer.slnx
    ```
-2. **Build the Solution:**
-   ```bash
-   dotnet build
-   ```
-
-### Configuration with Claude Desktop
-
-1. Locate your config file:
-   * **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-   * **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-
-2. Add the server configuration:
-   ```json
-   {
-     "mcpServers": {
-       "unity": {
-         "command": "dotnet",
-         "args": [
-           "run",
-           "--project",
-           "C:/Path/To/Unity-MCP-Server/UnityMcp.Server/UnityMcp.Server.csproj"
-         ]
-       }
-     }
-   }
+2. Run the server:
+   ```sh
+   dotnet run --project UnityMcp.Server/UnityMcp.Server.csproj
    ```
 
-## 🧪 Testing
+#### Option B: Install as Global Tool (Recommended)
+You can install the server as a system-wide command:
+1. Run the installation script:
+   ```powershell
+   ./install-tool.ps1
+   ```
+2. Now you can run it from any terminal:
+   ```sh
+   unity-mcp
+   ```
 
-The project includes a robust and realistic unit test suite in `UnityMcp.Tests`.
+### Test Connection
+- **Python:**
+  ```python
+  import socket, json
+  sock = socket.socket(); sock.connect(('localhost', 8765))
+  req = {"jsonrpc": "2.0", "id": "1", "method": "ping", "params": {}}
+  sock.send((json.dumps(req) + "\n").encode()); print(sock.recv(1024).decode()); sock.close()
+  ```
+- **Command Line:**
+  ```powershell
+  echo '{"jsonrpc":"2.0","id":"1","method":"ping","params":{}}' | ncat localhost 8765
+  ```
 
-* **Strict Mocking**: All tests use `NSubstitute` with strict verifications (`Received(1)`) to ensure idempotent behavior and correct service invocation.
-* **High Coverage**: Achieves approximately **~80% test coverage** across the Application and Core layers.
-* **Negative Testing**: Includes test cases for invalid parameters, service failures, and "Not Supported" scenarios.
+---
 
-To run the tests:
-```bash
-dotnet test
-```
+## VS Code Dev Container & Docker
 
-## 🤝 Contributing
+You can develop and run the MCP Server in a fully containerized environment using VS Code Dev Containers and Docker.
 
-Contributions are welcome! Please follow the Clean Architecture patterns established in the codebase.
+### Dev Container (VS Code)
+- Open the project in VS Code
+- If prompted, "Reopen in Container" (requires Docker)
+- The `.devcontainer/devcontainer.json` configures the environment with .NET SDK, PowerShell, and C# extensions
+- Port 8765 is forwarded for MCP connections
 
-## 📄 License
+### Docker (Standalone)
+- Build the Docker image:
+  ```sh
+  docker build -t mcp-server-dotnet .
+  ```
+- Run the server in a container:
+  ```sh
+  docker run -p 8765:8765 mcp-server-dotnet
+  ```
+- The server will be accessible on `localhost:8765` from your host
 
-[MIT License](LICENSE)
+---
+
+## Project Structure
+- **UnityMcp.Server/**: .NET server entry point
+- **UnityMcp.Core/**: Core server logic (no Unity dependencies)
+- **UnityMcp.Tests/**: Test suite for core and server logic
+- **QUICKSTART.md**: Getting started guide
+- **Legacy/**: Archived Unity/UPM code and docs (for reference only)
+
+---
+
+## Protocol & API Reference
+
+See [Documentation~/API_REFERENCE.md](Documentation~/API_REFERENCE.md) for the full protocol and tool documentation.
+
+---
+
+## Troubleshooting
+- **Port already in use:** Change port in config or close other app.
+- **No tools registered:** Check file locations and namespaces.
+- **Connection timeout:** Check firewall and allow port 8765.
+
+---
+
+## Version History
+
+- **1.2.0** (2026-02-15)
+  - Pure .NET structure, Unity/UPM code archived
+  - Major documentation and protocol improvements
+  - Expanded API and troubleshooting docs
+  - Added VS Code DevContainer and Docker support
+- **2.0.0** (2026-02-14)
+  - License-free CI/CD pipeline
+  - Standalone test suite and solution reorg
+- **1.0.0** (2025-02-14)
+  - Initial release with core MCP protocol and 5 tools
+
+---
+
+## Legacy Unity/UPM Support
+
+All Unity/UPM-specific code and documentation has been archived in the `archive/` folder. This repo is now a pure .NET MCP server. For Unity integration, see the archived files.

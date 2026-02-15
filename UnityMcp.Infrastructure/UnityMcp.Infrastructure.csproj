@@ -5,8 +5,12 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <!-- Allow overriding via environment variable or command line /p:UnityEditorPath=... -->
-    <UnityEditorPath Condition="'$(UnityEditorPath)' == ''">C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Data\Managed\UnityEditor.dll</UnityEditorPath>
+    <!-- Priority: 1. Explicit UnityEditorPath property, 2. UNITY_PATH env var, 3. Default path -->
+    <UnityManagedPath Condition="'$(UNITY_PATH)' != ''">$(UNITY_PATH)</UnityManagedPath>
+    <UnityManagedPath Condition="'$(UnityManagedPath)' == '' AND '$(UnityEditorPath)' != ''">$([System.IO.Path]::GetDirectoryName('$(UnityEditorPath)'))</UnityManagedPath>
+    <UnityManagedPath Condition="'$(UnityManagedPath)' == ''">C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Data\Managed</UnityManagedPath>
+    
+    <UnityEditorPath Condition="'$(UnityEditorPath)' == ''">$(UnityManagedPath)\UnityEditor.dll</UnityEditorPath>
   </PropertyGroup>
 
   <ItemGroup>

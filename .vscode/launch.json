@@ -3,18 +3,12 @@
     "configurations": [
         {
             "name": ".NET: Launch Unity MCP Server",
-            "type": "coreclr",
-            "request": "launch",
-            "preLaunchTask": "build",
-            "program": "${workspaceFolder}/UnityMcp.Server/bin/Debug/net10.0/UnityMcp.Server.dll",
-            "args": [],
-            "cwd": "${workspaceFolder}",
-            "stopAtEntry": false,
-            "console": "internalConsole"
+            "type": "dotnet",
+            "request": "launch"
         },
         {
             "name": ".NET: Attach to Process",
-            "type": "coreclr",
+            "type": "dotnet",
             "request": "attach"
         }
     ]

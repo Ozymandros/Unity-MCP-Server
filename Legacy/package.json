@@ -1,6 +1,6 @@
 {
   "name": "com.unitymcp.server",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "displayName": "Unity MCP Server",
   "description": "Model Context Protocol (MCP) server for Unity Editor. Enables AI assistants and LLMs to interact with Unity projects programmatically through a standardized JSON-RPC 2.0 interface.",
   "unity": "2020.3",

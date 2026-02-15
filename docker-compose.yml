@@ -1,8 +1,15 @@
 services:
   unity-mcp:
-    build: .
+    build:
+      context: .
+      args:
+        - UNITY_PATH=/unity_libs
+    environment:
+      - DOTNET_ENVIRONMENT=Development
+      - UNITY_PATH=/unity
     volumes:
       - ./MyUnityProject:/project
+      - C:/Program Files/Unity/Hub/Editor/6000.3.2f1/Editor/Data/Managed:/unity:ro
     entrypoint: ["dotnet", "UnityMcp.Server.dll", "--path", "/project"]
     stdin_open: true # Keep stdin open for MCP
     tty: true        # Allocate pseudo-TTY

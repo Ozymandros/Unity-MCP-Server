@@ -40,3 +40,6 @@ node_modules/
 *.txt
 **/bin/
 .vs
+
+nupkg
+dist
