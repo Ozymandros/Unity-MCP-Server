@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using System.ComponentModel.DataAnnotations;
 
 namespace UnityMcp.Core.Models;
 
@@ -126,22 +127,22 @@ public static class McpMethods
     public const string Ping = "ping";
     
     /// <summary>Creates a new Unity scene.</summary>
-    public const string CreateScene = "unity/create_scene";
+    public const string CreateScene = "unity_create_scene";
     
     /// <summary>Creates a new C# script.</summary>
-    public const string CreateScript = "unity/create_script";
+    public const string CreateScript = "unity_create_script";
     
     /// <summary>Lists assets in the project.</summary>
-    public const string ListAssets = "unity/list_assets";
+    public const string ListAssets = "unity_list_assets";
     
     /// <summary>Builds the Unity project.</summary>
-    public const string BuildProject = "unity/build_project";
+    public const string BuildProject = "unity_build_project";
 
     /// <summary>Creates a new GameObject.</summary>
-    public const string CreateGameObject = "unity/create_gameobject";
+    public const string CreateGameObject = "unity_create_gameobject";
 
     /// <summary>Creates a new generic asset.</summary>
-    public const string CreateAsset = "unity/create_asset";
+    public const string CreateAsset = "unity_create_asset";
 }
 
 public class InitializeResult
@@ -169,6 +170,18 @@ public class McpCapabilities
 {
     [JsonPropertyName("tools")]
     public object? Tools { get; set; }
+}
+
+
+public class McpClientInfo
+{
+    [JsonPropertyName("name")]
+    [Required]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("version")]
+    [Required]
+    public string Version { get; set; } = string.Empty;
 }
 
 public class ListToolsResult

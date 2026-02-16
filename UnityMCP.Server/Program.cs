@@ -18,6 +18,7 @@ class Program
     public static async Task Main(string[] args)
     {
         var host = Host.CreateDefaultBuilder(args)
+            .UseConsoleLifetime(options => options.SuppressStatusMessages = true)
             .ConfigureLogging(logging =>
             {
                 // Important: MCP uses Stdio, so we must NOT log to Console.Out
@@ -54,10 +55,6 @@ class Program
                 services.AddHostedService<McpHostedService>();
             })
             .Build();
-
-        // Send MCP handshake immediately for VS Code detection
-        Console.WriteLine("{\"mcpVersion\":\"1.0\",\"capabilities\":{}}");
-        Console.Out.Flush();
 
         // Optional: Parse args to set project path in IUnityService
         var unityService = host.Services.GetRequiredService<IUnityService>();

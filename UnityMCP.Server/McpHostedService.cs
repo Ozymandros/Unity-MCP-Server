@@ -35,9 +35,6 @@ public class McpHostedService : BackgroundService
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // MCP handshake per VS Code MCP
-        Console.WriteLine("{\"mcpVersion\":\"1.0\",\"capabilities\":{}}");
-
         // Redirigeix logs a STDERR per no trencar el protocol MCP
         Console.Error.WriteLine("Starting Unity MCP Server...");
 

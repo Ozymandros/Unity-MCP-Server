@@ -5,16 +5,23 @@ using UnityMcp.Core.Models;
 
 namespace UnityMcp.Application.Handlers.Core;
 
+using System.Text.Json.Serialization;
+
 /// <summary>
 /// Parameters for initialization.
 /// </summary>
 public class InitializeParameters
 {
+    [JsonPropertyName("protocolVersion")]
     [Required]
-    public string ClientName { get; set; } = string.Empty;
+    public string ProtocolVersion { get; set; } = string.Empty;
 
+    [JsonPropertyName("clientInfo")]
     [Required]
-    public string ClientVersion { get; set; } = string.Empty;
+    public McpClientInfo ClientInfo { get; set; } = new();
+
+    [JsonPropertyName("capabilities")]
+    public object? Capabilities { get; set; }
 }
 
 /// <summary>
