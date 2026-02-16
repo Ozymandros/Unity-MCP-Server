@@ -43,3 +43,4 @@ node_modules/
 
 nupkg
 dist
+.vscode/mcp.json

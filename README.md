@@ -27,26 +27,13 @@ Get up and running in minutes!
 - Python 3.7+ or Node.js 14+ (for client examples)
 
 ### Installation
-
-#### Option A: Run from Source (Development)
 1. Clone this repo and build:
    ```sh
-   dotnet build UnityMcpServer.slnx
+   dotnet build UnityMCP.PureServer.sln
    ```
 2. Run the server:
    ```sh
-   dotnet run --project UnityMcp.Server/UnityMcp.Server.csproj
-   ```
-
-#### Option B: Install as Global Tool (Recommended)
-You can install the server as a system-wide command:
-1. Run the installation script:
-   ```powershell
-   ./install-tool.ps1
-   ```
-2. Now you can run it from any terminal:
-   ```sh
-   unity-mcp
+   dotnet run --project src/UnityMCP.Server
    ```
 
 ### Test Connection
@@ -88,12 +75,11 @@ You can develop and run the MCP Server in a fully containerized environment usin
 ---
 
 ## Project Structure
-- **UnityMcp.Server/**: .NET server entry point
-- **UnityMcp.Core/**: Core server logic (no Unity dependencies)
-- **UnityMcp.Tests/**: Test suite for core and server logic
-- **QUICKSTART.md**: Getting started guide
-- **SKILL.md**: AI Agent discovery and documentation
-- **Legacy/**: Archived Unity/UPM code and docs (for reference only)
+- **src/UnityMCP.Server/**: .NET server entry point
+- **src/StandaloneMCP/**: Core server logic (no Unity dependencies)
+- **tests/UnityMCP.Tests/**: Test suite for core and server logic
+- **Documentation~/**: Architecture, API reference, CI/CD, installation, and quickstart docs
+- **archive/**: Legacy Unity/UPM code and docs (for reference only)
 
 ---
 
@@ -117,7 +103,7 @@ See [Documentation~/API_REFERENCE.md](Documentation~/API_REFERENCE.md) for the f
   - Major documentation and protocol improvements
   - Expanded API and troubleshooting docs
   - Added VS Code DevContainer and Docker support
-- **2.0.0** (2026-02-14)
+- **1.1.0** (2026-02-14)
   - License-free CI/CD pipeline
   - Standalone test suite and solution reorg
 - **1.0.0** (2025-02-14)

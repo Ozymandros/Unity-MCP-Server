@@ -23,7 +23,10 @@ class Program
                 // Important: MCP uses Stdio, so we must NOT log to Console.Out
                 // We log to Stderr or a file.
                 logging.ClearProviders();
-                logging.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
+                logging.AddConsole(options =>
+                {
+                    options.LogToStandardErrorThreshold = LogLevel.Trace;
+                });
                 logging.AddDebug();
             })
             .ConfigureServices((hostContext, services) =>
@@ -51,6 +54,10 @@ class Program
                 services.AddHostedService<McpHostedService>();
             })
             .Build();
+
+        // Send MCP handshake immediately for VS Code detection
+        Console.WriteLine("{\"mcpVersion\":\"1.0\",\"capabilities\":{}}");
+        Console.Out.Flush();
 
         // Optional: Parse args to set project path in IUnityService
         var unityService = host.Services.GetRequiredService<IUnityService>();

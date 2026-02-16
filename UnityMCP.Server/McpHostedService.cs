@@ -35,7 +35,11 @@ public class McpHostedService : BackgroundService
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Starting Unity MCP Server...");
+        // MCP handshake per VS Code MCP
+        Console.WriteLine("{\"mcpVersion\":\"1.0\",\"capabilities\":{}}");
+
+        // Redirigeix logs a STDERR per no trencar el protocol MCP
+        Console.Error.WriteLine("Starting Unity MCP Server...");
 
         // Validate project path from args or env if needed, 
         // but we'll likely pass it in Initialize or just assume CWD for now.
@@ -49,6 +53,6 @@ public class McpHostedService : BackgroundService
             return await _router.RouteRequestAsync(request);
         }, stoppingToken);
 
-        _logger.LogInformation("Unity MCP Server stopped.");
+        Console.Error.WriteLine("Unity MCP Server stopped.");
     }
 }
