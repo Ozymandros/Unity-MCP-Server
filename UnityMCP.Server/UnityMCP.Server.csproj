@@ -1,5 +1,17 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <ItemGroup>
+    <ProjectReference Include="..\UnityMcp.Application\UnityMcp.Application.csproj" />
+    <ProjectReference Include="..\UnityMcp.Infrastructure\UnityMcp.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.3" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -7,7 +19,12 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\StandaloneMCP\StandaloneMCP.csproj" />
-  </ItemGroup>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>unity-mcp</ToolCommandName>
+    <PackageOutputPath>./nupkg</PackageOutputPath>
+  </PropertyGroup>
+
 </Project>

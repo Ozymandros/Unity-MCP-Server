@@ -36,11 +36,6 @@ venv/
 
 # Node.js
 node_modules/
-*.log
-*.txt
+npm-debug.log
 **/bin/
 .vs
-
-nupkg
-dist
-.vscode/mcp.json

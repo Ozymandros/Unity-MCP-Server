@@ -1,23 +1,15 @@
 {
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "Launch Unity MCP Server (.NET Core)",
-      "type": "coreclr",
-      "request": "launch",
-      "program": "${workspaceFolder}/UnityMCP.Server/bin/Debug/net10.0/UnityMCP.Server.dll",
-      "args": [],
-      "cwd": "${workspaceFolder}/UnityMCP.Server",
-      "stopAtEntry": false
-    },
-    {
-      "name": "Test Project: UnityMCP.Tests",
-      "type": "coreclr",
-      "request": "launch",
-      "program": "${workspaceFolder}/UnityMCP.Tests/bin/Debug/net8.0/UnityMCP.Tests.dll",
-      "args": [],
-      "cwd": "${workspaceFolder}/UnityMCP.Tests",
-      "stopAtEntry": false
-    }
-  ]
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": ".NET: Launch Unity MCP Server",
+            "type": "dotnet",
+            "request": "launch"
+        },
+        {
+            "name": ".NET: Attach to Process",
+            "type": "dotnet",
+            "request": "attach"
+        }
+    ]
 }
