@@ -36,7 +36,7 @@ public class McpHostedService : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // Redirigeix logs a STDERR per no trencar el protocol MCP
-        Console.Error.WriteLine("Starting Unity MCP Server...");
+        // Console.Error.WriteLine("Starting Unity MCP Server...");
 
         // Validate project path from args or env if needed, 
         // but we'll likely pass it in Initialize or just assume CWD for now.

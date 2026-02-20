@@ -17,52 +17,51 @@ class Program
 {
     public static async Task Main(string[] args)
     {
+        // ELIMINA qualsevol Console.WriteLine d'aquí!
+
         var host = Host.CreateDefaultBuilder(args)
             .UseConsoleLifetime(options => options.SuppressStatusMessages = true)
             .ConfigureLogging(logging =>
             {
-                // Important: MCP uses Stdio, so we must NOT log to Console.Out
-                // We log to Stderr or a file.
-                logging.ClearProviders();
+                logging.ClearProviders(); // Netegem logs automàtics
                 logging.AddConsole(options =>
                 {
+                    // Forcem que tot el "soroll" de log vagi per la via d'error (Stderr)
+                    // perquè no interfereixi amb el JSON de l'MCP
                     options.LogToStandardErrorThreshold = LogLevel.Trace;
                 });
-                logging.AddDebug();
+                logging.SetMinimumLevel(LogLevel.Warning);
             })
             .ConfigureServices((hostContext, services) =>
             {
-                // Infrastructure
                 services.AddSingleton<IUnityService, FileUnityService>();
-                services.AddSingleton<IMcpTransport, StdioMcpTransport>();
-                services.AddSingleton<IProcessRunner, ProcessRunner>();
+                services.AddSingleton<IMcpTransport, StdioMcpTransport>(); // Protocol oficial
 
-                // Routable Handlers
+                // Handlers necessaris
                 services.AddSingleton<IMcpHandler, InitializeHandler>();
                 services.AddSingleton<IMcpHandler, ListToolsHandler>();
-                services.AddSingleton<IMcpHandler, PingHandler>();
                 services.AddSingleton<IMcpHandler, CreateSceneHandler>();
                 services.AddSingleton<IMcpHandler, CreateScriptHandler>();
                 services.AddSingleton<IMcpHandler, ListAssetsHandler>();
+                services.AddSingleton<IMcpHandler, BuildProjectHandler>();
                 services.AddSingleton<IMcpHandler, CreateGameObjectHandler>();
                 services.AddSingleton<IMcpHandler, CreateAssetHandler>();
-                services.AddSingleton<IMcpHandler, BuildProjectHandler>();
-
-                // Router
                 services.AddSingleton<McpRouter>();
-
-                // Hosted Service
-                services.AddHostedService<McpHostedService>();
+                // Register CallToolHandler with router injection
+                services.AddSingleton<IMcpHandler>(sp => new CallToolHandler(sp.GetRequiredService<McpRouter>()));
+                services.AddHostedService<McpHostedService>(); // Motor del servidor
             })
             .Build();
 
-        // Optional: Parse args to set project path in IUnityService
-        var unityService = host.Services.GetRequiredService<IUnityService>();
-        // Default to current directory if not specified
-        string projectPath = Directory.GetCurrentDirectory(); 
-        // Only strictly creating the UnityService, not initiating validity check until invoked
-        await unityService.IsValidProjectAsync(projectPath);
-
-        await host.RunAsync();
+        try
+        {
+            // Arrenca el servidor en silenci total
+            await host.RunAsync();
+        }
+        catch (Exception ex)
+        {
+            // Els errors van a Stderr per seguretat
+            await Console.Error.WriteLineAsync($"FATAL: {ex.Message}");
+        }
     }
 }

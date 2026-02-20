@@ -38,14 +38,14 @@ public class InitializeHandler : McpHandlerBase<InitializeParameters, Initialize
         return Task.FromResult(new InitializeResult
         {
             ProtocolVersion = McpConstants.ProtocolVersion,
-            Server = new McpServerInfo
+            ServerInfo = new McpServerInfo
             {
                 Name = "Unity MCP Server",
                 Version = "1.0.0"
             },
             Capabilities = new McpCapabilities
             {
-                Tools = new { }
+                Tools = new { listChanged = false }
             }
         });
     }

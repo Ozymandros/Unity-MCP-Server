@@ -15,7 +15,7 @@ public class ListToolsHandler : McpHandlerBase<EmptyParameters, ListToolsResult>
     public override string Method => McpMethods.ListTools;
 
     /// <inheritdoc />
-    public override Task<ListToolsResult> HandleAsync(EmptyParameters parameters)
+    public override async Task<ListToolsResult> HandleAsync(EmptyParameters parameters)
     {
         var tools = new List<McpTool>
         {
@@ -119,6 +119,9 @@ public class ListToolsHandler : McpHandlerBase<EmptyParameters, ListToolsResult>
             }
         };
 
-        return Task.FromResult(new ListToolsResult { Tools = tools });
+        var response = new ListToolsResult { Tools = tools };
+
+        // Emboliquem la resposta manualment en un Task
+        return response;
     }
 }
