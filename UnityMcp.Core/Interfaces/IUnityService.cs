@@ -1,0 +1,82 @@
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace UnityMcp.Core.Interfaces;
+
+/// <summary>
+/// Service that abstracts Unity-specific operations.
+/// Provides methods to manipulate Unity project files without depending on Unity Editor DLLs.
+/// </summary>
+public interface IUnityService
+{
+    /// <summary>
+    /// Checks if the specified path represents a valid Unity project.
+    /// </summary>
+    Task<bool> IsValidProjectAsync(string projectPath, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a minimal Unity Scene file (.unity) at the specified path.
+    /// </summary>
+    Task CreateSceneAsync(string relativePath, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a C# script. If content is provided (AI-generated), writes it directly.
+    /// Otherwise creates a default MonoBehaviour template.
+    /// </summary>
+    Task CreateScriptAsync(string relativePath, string scriptName, string? content = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists files in a directory, optionally filtering by pattern.
+    /// </summary>
+    Task<IEnumerable<string>> ListAssetsAsync(string relativePath, string searchPattern = "*", CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Builds the project using Unity CLI in batch mode.
+    /// </summary>
+    Task BuildProjectAsync(string buildTarget, string outputPath, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a generic text file at the specified path.
+    /// </summary>
+    Task CreateAssetAsync(string relativePath, string content, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a new GameObject in an existing scene file (appends YAML).
+    /// </summary>
+    Task CreateGameObjectAsync(string scenePath, string gameObjectName, CancellationToken cancellationToken = default);
+
+    // -----------------------------------------------------------------------
+    // Enhanced tools for AI-driven scene authoring
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Creates a detailed scene with a list of GameObjects (camera, lights, geometry, etc.).
+    /// </summary>
+    Task CreateDetailedSceneAsync(string relativePath, string sceneJson, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Appends a GameObject (with components and transform) to an existing scene.
+    /// </summary>
+    Task AddGameObjectToSceneAsync(string scenePath, string gameObjectJson, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a Unity material file (.mat).
+    /// </summary>
+    Task CreateMaterialAsync(string relativePath, string materialJson, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a Unity prefab file (.prefab).
+    /// </summary>
+    Task CreatePrefabAsync(string relativePath, string prefabJson, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads the text content of a file.
+    /// </summary>
+    Task<string> ReadAssetAsync(string relativePath, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes a file from the project.
+    /// </summary>
+    Task DeleteAssetAsync(string relativePath, CancellationToken cancellationToken = default);
+}
