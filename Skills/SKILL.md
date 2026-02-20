@@ -1,11 +1,11 @@
 ---
 name: unity-mcp
-description: Full-featured Model Context Protocol (MCP) server for Unity Editor automation. Enables AI agents to orchestrate project structure, script creation, scene hierarchy, and CI/CD pipelines directly via JSON-RPC.
+description: Full-featured Model Context Protocol (MCP) server for Unity Editor automation. Built on the official C# MCP SDK. Enables AI agents to orchestrate project structure, script creation, scene hierarchy, and CI/CD pipelines.
 ---
 
 # Unity MCP Server Skill
 
-This skill provides a bridge between AI agents and the Unity Editor using the Model Context Protocol (MCP). It allows for seamless project management, asset creation, and automation tasks.
+This skill provides a bridge between AI agents and the Unity Editor using the [official C# MCP SDK](https://github.com/modelcontextprotocol/csharp-sdk). It allows for seamless project management, asset creation, and automation tasks.
 
 ## 🚀 Core Capabilities
 
@@ -26,8 +26,8 @@ Trigger and monitor project builds directly from the agent conversation.
 
 ### 3. Protocol & Reliability
 
-- **JSON-RPC 2.0 Compliance**: Standard-compliant communication (Handshake, Tools, Health).
-- **Strict Validation**: All tool parameters are validated against C# DataAnnotations before execution.
+- **Official SDK**: Uses `ModelContextProtocol` NuGet package for standard-compliant MCP communication.
+- **Attribute-based Tools**: All tools declared via `[McpServerToolType]` / `[McpServerTool]` attributes with automatic discovery.
 - **Stderr Logging**: Safe logging that doesn't interfere with the Stdio-based MCP protocol.
 
 ## 🛠️ Environment Configuration
@@ -51,19 +51,17 @@ Install system-wide to run via `unity-mcp`:
 
 The following tools are available to any MCP-compatible agent:
 
-### 📡 Connectivity & System
+### 📡 Connectivity
 
-| Method | Description | Parameters |
+| Tool Name | Description | Parameters |
 | :--- | :--- | :--- |
 | `ping` | Verifies server health. | None |
-| `tools/list` | Returns discovery schema for all tools. | None |
-| `initialize` | Handshake (protocol versioning). | `clientName`, `clientVersion` |
 
 ### 🛠️ Unity Engine Tools
 
-| Method | Description | Required Parameters |
+| Tool Name | Description | Required Parameters |
 | :--- | :--- | :--- |
-| `unity_list_assets` | Lists assets in a directory. | `path` (can be default "Assets") |
+| `unity_list_assets` | Lists assets in a directory. | `path` (default "Assets"), `pattern` |
 | `unity_create_script` | Creates a new C# script. | `path`, `scriptName` |
 | `unity_create_scene` | Creates a new `.unity` file. | `path` |
 | `unity_create_gameobject` | Adds object to a scene. | `scenePath`, `gameObjectName` |
