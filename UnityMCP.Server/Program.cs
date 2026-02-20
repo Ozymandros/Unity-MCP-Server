@@ -14,6 +14,7 @@ builder.Logging.AddConsole(options =>
 });
 builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
+builder.Services.AddSingleton<IProcessRunner, ProcessRunner>();
 builder.Services.AddSingleton<IUnityService, FileUnityService>();
 
 builder.Services
