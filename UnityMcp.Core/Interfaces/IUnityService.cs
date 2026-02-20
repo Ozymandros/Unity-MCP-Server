@@ -79,4 +79,64 @@ public interface IUnityService
     /// Deletes a file from the project.
     /// </summary>
     Task DeleteAssetAsync(string relativePath, CancellationToken cancellationToken = default);
+
+    // -----------------------------------------------------------------------
+    // Project scaffolding & management
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Scaffolds a complete Unity project skeleton (Assets/, Scripts/, Textures/, etc.)
+    /// with all necessary .meta sidecars. Idempotent — reuses existing folder.
+    /// Returns the absolute path to the project root.
+    /// </summary>
+    Task<string> ScaffoldProjectAsync(string projectName, string? outputRoot = null, string? unityVersion = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns project info: path, name, Unity version.
+    /// </summary>
+    Task<string> GetProjectInfoAsync(string projectPath, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a folder with its .meta sidecar.
+    /// </summary>
+    Task CreateFolderAsync(string folderPath, CancellationToken cancellationToken = default);
+
+    // -----------------------------------------------------------------------
+    // Typed asset saving (with correct .meta sidecars)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Saves a C# script with MonoImporter .meta sidecar.
+    /// </summary>
+    Task SaveScriptAsync(string projectPath, string fileName, string content, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Saves a text asset with DefaultImporter .meta sidecar.
+    /// </summary>
+    Task SaveTextAssetAsync(string projectPath, string fileName, string content, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Saves a texture (base64 PNG) with TextureImporter .meta sidecar.
+    /// </summary>
+    Task SaveTextureAsync(string projectPath, string fileName, string base64Data, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Saves an audio clip (base64 MP3/WAV) with AudioImporter .meta sidecar.
+    /// </summary>
+    Task SaveAudioAsync(string projectPath, string fileName, string base64Data, CancellationToken cancellationToken = default);
+
+    // -----------------------------------------------------------------------
+    // Validation & package management
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Validates C# syntax (balanced braces/parens, class keyword present).
+    /// Returns a JSON result with isValid and errors.
+    /// </summary>
+    Task<string> ValidateCSharpAsync(string code, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Adds UPM packages to Packages/manifest.json.
+    /// </summary>
+    Task AddPackagesAsync(string projectPath, string packagesJson, CancellationToken cancellationToken = default);
 }

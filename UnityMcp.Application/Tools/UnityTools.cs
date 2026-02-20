@@ -201,4 +201,151 @@ public static class UnityTools
         await unityService.CreateGameObjectAsync(scenePath, gameObjectName, cancellationToken);
         return $"GameObject {gameObjectName} created in {scenePath}";
     }
+
+    // -----------------------------------------------------------------------
+    // Project scaffolding & management
+    // -----------------------------------------------------------------------
+
+    [McpServerTool(Name = "unity_scaffold_project"), Description(
+        "Scaffolds a complete Unity project skeleton with Assets/, Scripts/, Textures/, Audio/, " +
+        "Scenes/, Prefabs/, Materials/, Text/, ProjectSettings/, and Packages/ — all with .meta sidecars. " +
+        "Idempotent: reuses the project folder if it already exists. Returns the absolute path.")]
+    public static async Task<string> ScaffoldProject(
+        IUnityService unityService,
+        [Description("Project folder name (e.g. MyGame). Used as-is — no timestamps added.")]
+        string projectName,
+        [Description("Parent directory for the project (default: ./output)")]
+        string? outputRoot = null,
+        [Description("Unity version for ProjectVersion.txt (default: 2022.3.0f1)")]
+        string? unityVersion = null,
+        CancellationToken cancellationToken = default)
+    {
+        string path = await unityService.ScaffoldProjectAsync(projectName, outputRoot, unityVersion, cancellationToken);
+        return $"Project scaffolded at {path}";
+    }
+
+    [McpServerTool(Name = "unity_get_project_info"), Description(
+        "Returns project metadata (name, absolute path, Unity version, whether Assets/ exists) as JSON.")]
+    public static async Task<string> GetProjectInfo(
+        IUnityService unityService,
+        [Description("Absolute path to the Unity project root")]
+        string projectPath,
+        CancellationToken cancellationToken = default)
+    {
+        return await unityService.GetProjectInfoAsync(projectPath, cancellationToken);
+    }
+
+    [McpServerTool(Name = "unity_create_folder"), Description(
+        "Creates a folder inside the Unity project with a .meta sidecar (Unity requires .meta to track folders).")]
+    public static async Task<string> CreateFolder(
+        IUnityService unityService,
+        [Description("Absolute or relative path of the folder to create")]
+        string folderPath,
+        CancellationToken cancellationToken = default)
+    {
+        await unityService.CreateFolderAsync(folderPath, cancellationToken);
+        return $"Folder created at {folderPath} (with .meta)";
+    }
+
+    // -----------------------------------------------------------------------
+    // Typed asset saving tools
+    // -----------------------------------------------------------------------
+
+    [McpServerTool(Name = "unity_save_script"), Description(
+        "Saves AI-generated C# code into Assets/Scripts/ with a MonoImporter .meta sidecar. " +
+        "This is the preferred way to write scripts — ensures Unity recognises the file on import.")]
+    public static async Task<string> SaveScript(
+        IUnityService unityService,
+        [Description("Absolute path to the project root")]
+        string projectPath,
+        [Description("Script filename with extension (e.g. PlayerController.cs)")]
+        string fileName,
+        [Description("Full C# source code")]
+        string content,
+        CancellationToken cancellationToken = default)
+    {
+        await unityService.SaveScriptAsync(projectPath, fileName, content, cancellationToken);
+        return $"Script {fileName} saved to {projectPath}/Assets/Scripts/ (with .meta)";
+    }
+
+    [McpServerTool(Name = "unity_save_text"), Description(
+        "Saves a text asset (dialogue, narrative, JSON data) into Assets/Text/ with a .meta sidecar.")]
+    public static async Task<string> SaveText(
+        IUnityService unityService,
+        [Description("Absolute path to the project root")]
+        string projectPath,
+        [Description("Text filename with extension (e.g. dialogue.txt, config.json)")]
+        string fileName,
+        [Description("Text content to save")]
+        string content,
+        CancellationToken cancellationToken = default)
+    {
+        await unityService.SaveTextAssetAsync(projectPath, fileName, content, cancellationToken);
+        return $"Text asset {fileName} saved to {projectPath}/Assets/Text/ (with .meta)";
+    }
+
+    [McpServerTool(Name = "unity_save_texture"), Description(
+        "Saves a base64-encoded PNG/JPG image into Assets/Textures/ with a TextureImporter .meta sidecar.")]
+    public static async Task<string> SaveTexture(
+        IUnityService unityService,
+        [Description("Absolute path to the project root")]
+        string projectPath,
+        [Description("Image filename with extension (e.g. player_sprite.png)")]
+        string fileName,
+        [Description("Base64-encoded image data (PNG or JPG)")]
+        string base64Data,
+        CancellationToken cancellationToken = default)
+    {
+        await unityService.SaveTextureAsync(projectPath, fileName, base64Data, cancellationToken);
+        return $"Texture {fileName} saved to {projectPath}/Assets/Textures/ (with .meta)";
+    }
+
+    [McpServerTool(Name = "unity_save_audio"), Description(
+        "Saves a base64-encoded audio file into Assets/Audio/ with an AudioImporter .meta sidecar.")]
+    public static async Task<string> SaveAudio(
+        IUnityService unityService,
+        [Description("Absolute path to the project root")]
+        string projectPath,
+        [Description("Audio filename with extension (e.g. explosion.mp3, ambient.wav)")]
+        string fileName,
+        [Description("Base64-encoded audio data (MP3 or WAV)")]
+        string base64Data,
+        CancellationToken cancellationToken = default)
+    {
+        await unityService.SaveAudioAsync(projectPath, fileName, base64Data, cancellationToken);
+        return $"Audio {fileName} saved to {projectPath}/Assets/Audio/ (with .meta)";
+    }
+
+    // -----------------------------------------------------------------------
+    // Validation & package management
+    // -----------------------------------------------------------------------
+
+    [McpServerTool(Name = "unity_validate_csharp"), Description(
+        "Validates C# syntax without compiling — checks balanced braces/parens, class keyword, using directives. " +
+        "Returns JSON with isValid (bool) and errors (string[]). Use before saving scripts to catch issues early.")]
+    public static async Task<string> ValidateCSharp(
+        IUnityService unityService,
+        [Description("Full C# source code to validate")]
+        string code,
+        CancellationToken cancellationToken = default)
+    {
+        return await unityService.ValidateCSharpAsync(code, cancellationToken);
+    }
+
+    [McpServerTool(Name = "unity_add_packages"), Description(
+        "Adds UPM packages to Packages/manifest.json (merges with existing). " +
+        "Pass a JSON object of package IDs to versions. " +
+        "Example: {\"com.unity.render-pipelines.universal\":\"14.0.11\",\"com.unity.textmeshpro\":\"3.0.6\"}")]
+    public static async Task<string> AddPackages(
+        IUnityService unityService,
+        [Description("Absolute path to the project root")]
+        string projectPath,
+        [Description("JSON object with package IDs and versions, e.g. {\"com.unity.render-pipelines.universal\":\"14.0.11\"}")]
+        string packagesJson,
+        CancellationToken cancellationToken = default)
+    {
+        await unityService.AddPackagesAsync(projectPath, packagesJson, cancellationToken);
+        return $"Packages added to {projectPath}/Packages/manifest.json";
+    }
 }
+

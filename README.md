@@ -1,4 +1,4 @@
-# MCP Server (.NET) v1.2.0
+# MCP Server (.NET) v1.3.0
 
 [![.NET CI](https://img.shields.io/github/actions/workflow/status/ozymandros/unity-mcp-server/dotnet.yml?branch=main&label=.NET%20CI&logo=dotnet&logoColor=white&style=flat-square)](https://github.com/ozymandros/unity-mcp-server/actions/workflows/dotnet.yml)
 [![Quality](https://img.shields.io/github/actions/workflow/status/ozymandros/unity-mcp-server/static_analysis.yml?branch=main&label=Quality&logo=github-actions&logoColor=white&style=flat-square)](https://github.com/ozymandros/unity-mcp-server/actions/workflows/static_analysis.yml)
@@ -10,11 +10,13 @@ A pure .NET implementation of the Model Context Protocol (MCP) server. Enables A
 ---
 
 ## Features
+- **22 MCP tools**: Project scaffolding, scene authoring, typed asset saving (with .meta sidecars), C# validation, UPM packages, builds.
+- **Complete .meta generation**: MonoImporter, TextureImporter, AudioImporter, DefaultImporter, and folder .meta — Unity recognises all assets on import.
 - **Extensible tool/skill architecture**: Add new automation and integration tools easily.
 - **JSON-RPC 2.0 over TCP**: Standard protocol for interoperability with any client (Node.js, Python, etc).
 - **Pure .NET**: No Unity/UPM dependencies. Runs anywhere .NET 10.0+ is supported.
 - **Docker & DevContainer ready**: Containerized for CI/CD and cloud workflows.
-- **Comprehensive test suite**: Ensures reliability and correctness.
+- **Comprehensive test suite**: 55 tests covering all tools (unit + integration).
 
 ---
 
@@ -75,11 +77,13 @@ You can develop and run the MCP Server in a fully containerized environment usin
 ---
 
 ## Project Structure
-- **src/UnityMCP.Server/**: .NET server entry point
-- **src/StandaloneMCP/**: Core server logic (no Unity dependencies)
-- **tests/UnityMCP.Tests/**: Test suite for core and server logic
-- **Documentation~/**: Architecture, API reference, CI/CD, installation, and quickstart docs
-- **archive/**: Legacy Unity/UPM code and docs (for reference only)
+- **UnityMcp.Server/**: .NET server entry point (stdio MCP transport)
+- **UnityMcp.Application/**: MCP tool definitions (22 tools)
+- **UnityMcp.Core/**: Interfaces and abstractions
+- **UnityMcp.Infrastructure/**: File-based Unity service, YAML writer, MetaFileWriter
+- **UnityMcp.Tests/**: 55 tests (unit + integration)
+- **Skills/SKILL.md**: AI agent skill reference
+- **Documentation~/**: Architecture, API reference, CI/CD docs
 
 ---
 
@@ -98,6 +102,11 @@ See [Documentation~/API_REFERENCE.md](Documentation~/API_REFERENCE.md) for the f
 
 ## Version History
 
+- **1.3.0** (2026-02-20)
+  - 22 MCP tools (9 new: scaffold, folder, save script/text/texture/audio, validate C#, add packages, project info)
+  - Full .meta sidecar generation (MonoImporter, TextureImporter, AudioImporter, DefaultImporter, folder)
+  - Existing tools (create_script, create_asset, create_scene) now also generate .meta sidecars
+  - 55 tests (31 new integration tests)
 - **1.2.0** (2026-02-15)
   - Pure .NET structure, Unity/UPM code archived
   - Major documentation and protocol improvements
