@@ -1,5 +1,5 @@
 using System;
-using System.IO;
+using System.IO.Abstractions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -11,8 +11,12 @@ namespace UnityMcp.Infrastructure.Unity;
 /// GUIDs and importer settings. Without these, Unity regenerates them on import
 /// and cross-references break.
 /// </summary>
-public static class MetaFileWriter
+public class MetaFileWriter
 {
+    private readonly IFileSystem _fs;
+
+    public MetaFileWriter(IFileSystem fs) => _fs = fs;
+
     // -------------------------------------------------------------------
     // Template constants – one per importer type.
     // The {0} placeholder is replaced with the GUID at write-time.
@@ -118,31 +122,31 @@ public static class MetaFileWriter
     /// <summary>
     /// Write a DefaultImporter .meta sidecar (used for generic text files, JSON, etc.).
     /// </summary>
-    public static Task WriteDefaultMetaAsync(string assetPath, string? guid = null, CancellationToken ct = default)
+    public Task WriteDefaultMetaAsync(string assetPath, string? guid = null, CancellationToken ct = default)
         => WriteMetaAsync(assetPath, DefaultMetaTemplate, guid, ct);
 
     /// <summary>
     /// Write a MonoImporter .meta sidecar (used for C# scripts).
     /// </summary>
-    public static Task WriteScriptMetaAsync(string assetPath, string? guid = null, CancellationToken ct = default)
+    public Task WriteScriptMetaAsync(string assetPath, string? guid = null, CancellationToken ct = default)
         => WriteMetaAsync(assetPath, ScriptMetaTemplate, guid, ct);
 
     /// <summary>
     /// Write a TextureImporter .meta sidecar (used for .png, .jpg, .tga, etc.).
     /// </summary>
-    public static Task WriteTextureMetaAsync(string assetPath, string? guid = null, CancellationToken ct = default)
+    public Task WriteTextureMetaAsync(string assetPath, string? guid = null, CancellationToken ct = default)
         => WriteMetaAsync(assetPath, TextureMetaTemplate, guid, ct);
 
     /// <summary>
     /// Write an AudioImporter .meta sidecar (used for .mp3, .wav, .ogg, etc.).
     /// </summary>
-    public static Task WriteAudioMetaAsync(string assetPath, string? guid = null, CancellationToken ct = default)
+    public Task WriteAudioMetaAsync(string assetPath, string? guid = null, CancellationToken ct = default)
         => WriteMetaAsync(assetPath, AudioMetaTemplate, guid, ct);
 
     /// <summary>
     /// Write a folder .meta sidecar.
     /// </summary>
-    public static Task WriteFolderMetaAsync(string folderPath, string? guid = null, CancellationToken ct = default)
+    public Task WriteFolderMetaAsync(string folderPath, string? guid = null, CancellationToken ct = default)
         => WriteMetaAsync(folderPath, FolderMetaTemplate, guid, ct);
 
     /// <summary>
@@ -154,9 +158,9 @@ public static class MetaFileWriter
     // Private core
     // -------------------------------------------------------------------
 
-    private static Task WriteMetaAsync(string path, string template, string? guid, CancellationToken ct)
+    private Task WriteMetaAsync(string path, string template, string? guid, CancellationToken ct)
     {
         string content = string.Format(template, guid ?? NewGuid()) + "\n";
-        return File.WriteAllTextAsync(path + MetaExtension, content, ct);
+        return _fs.File.WriteAllTextAsync(path + MetaExtension, content, ct);
     }
 }

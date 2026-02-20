@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Abstractions;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
@@ -20,6 +21,8 @@ public class FileUnityService : IUnityService
 {
     private readonly ILogger<FileUnityService> _logger;
     private readonly IProcessRunner _processRunner;
+    private readonly IFileSystem _fs;
+    private readonly MetaFileWriter _metaWriter;
     private string? _projectPath;
 
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -27,16 +30,18 @@ public class FileUnityService : IUnityService
         PropertyNameCaseInsensitive = true,
     };
 
-    public FileUnityService(ILogger<FileUnityService> logger, IProcessRunner processRunner)
+    public FileUnityService(ILogger<FileUnityService> logger, IProcessRunner processRunner, IFileSystem? fileSystem = null)
     {
         _logger = logger;
         _processRunner = processRunner;
+        _fs = fileSystem ?? new FileSystem();
+        _metaWriter = new MetaFileWriter(_fs);
     }
 
     public Task<bool> IsValidProjectAsync(string projectPath, CancellationToken cancellationToken = default)
     {
         _projectPath = projectPath;
-        bool isValid = Directory.Exists(Path.Combine(projectPath, "Assets"));
+        bool isValid = _fs.Directory.Exists(_fs.Path.Combine(projectPath, "Assets"));
         return Task.FromResult(isValid);
     }
 
@@ -53,8 +58,8 @@ public class FileUnityService : IUnityService
 
         UnityYamlWriter.ResetFileIdCounter();
         string yaml = UnityYamlWriter.WriteScene(gameObjects);
-        await File.WriteAllTextAsync(relativePath, yaml, cancellationToken);
-        await MetaFileWriter.WriteDefaultMetaAsync(relativePath, ct: cancellationToken);
+        await _fs.File.WriteAllTextAsync(relativePath, yaml, cancellationToken);
+        await _metaWriter.WriteDefaultMetaAsync(relativePath, ct: cancellationToken);
         _logger.LogInformation("Scene created at {Path}", relativePath);
     }
 
@@ -78,20 +83,20 @@ public class {scriptName} : MonoBehaviour
         
     }}
 }}";
-        await File.WriteAllTextAsync(relativePath, scriptContent, cancellationToken);
-        await MetaFileWriter.WriteScriptMetaAsync(relativePath, ct: cancellationToken);
+        await _fs.File.WriteAllTextAsync(relativePath, scriptContent, cancellationToken);
+        await _metaWriter.WriteScriptMetaAsync(relativePath, ct: cancellationToken);
         _logger.LogInformation("Script created at {Path} (with .meta)", relativePath);
     }
 
     public Task<IEnumerable<string>> ListAssetsAsync(string relativePath, string searchPattern = "*", CancellationToken cancellationToken = default)
     {
-        if (!Directory.Exists(relativePath))
+        if (!_fs.Directory.Exists(relativePath))
         {
             _logger.LogWarning("Directory not found: {Path}", relativePath);
             return Task.FromResult(Enumerable.Empty<string>());
         }
 
-        var files = Directory.EnumerateFiles(relativePath, searchPattern, SearchOption.AllDirectories)
+        var files = _fs.Directory.EnumerateFiles(relativePath, searchPattern, SearchOption.AllDirectories)
             .Select(f => f.Replace('\\', '/'))
             .Where(f => !f.EndsWith(".meta", StringComparison.OrdinalIgnoreCase))
             .OrderBy(f => f)
@@ -123,8 +128,8 @@ public class {scriptName} : MonoBehaviour
     public async Task CreateAssetAsync(string relativePath, string content, CancellationToken cancellationToken = default)
     {
         EnsureDirectoryExists(relativePath);
-        await File.WriteAllTextAsync(relativePath, content, cancellationToken);
-        await MetaFileWriter.WriteDefaultMetaAsync(relativePath, ct: cancellationToken);
+        await _fs.File.WriteAllTextAsync(relativePath, content, cancellationToken);
+        await _metaWriter.WriteDefaultMetaAsync(relativePath, ct: cancellationToken);
         _logger.LogInformation("Asset created at {Path} (with .meta)", relativePath);
     }
 
@@ -133,7 +138,7 @@ public class {scriptName} : MonoBehaviour
         // Append a simple GameObject to an existing scene file
         var go = new GameObjectDef { Name = gameObjectName };
         string fragment = UnityYamlWriter.WriteGameObjectFragment(go);
-        await File.AppendAllTextAsync(scenePath, fragment, cancellationToken);
+        await _fs.File.AppendAllTextAsync(scenePath, fragment, cancellationToken);
         _logger.LogInformation("GameObject {Name} appended to {Scene}", gameObjectName, scenePath);
     }
 
@@ -148,18 +153,18 @@ public class {scriptName} : MonoBehaviour
         var defs = DeserializeGameObjects(sceneJson);
         UnityYamlWriter.ResetFileIdCounter();
         string yaml = UnityYamlWriter.WriteScene(defs);
-        await File.WriteAllTextAsync(relativePath, yaml, cancellationToken);
+        await _fs.File.WriteAllTextAsync(relativePath, yaml, cancellationToken);
         _logger.LogInformation("Detailed scene created at {Path} with {Count} GameObjects", relativePath, defs.Count);
     }
 
     public async Task AddGameObjectToSceneAsync(string scenePath, string gameObjectJson, CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(scenePath))
+        if (!_fs.File.Exists(scenePath))
             throw new FileNotFoundException($"Scene file not found: {scenePath}");
 
         var go = DeserializeGameObject(gameObjectJson);
         string fragment = UnityYamlWriter.WriteGameObjectFragment(go);
-        await File.AppendAllTextAsync(scenePath, fragment, cancellationToken);
+        await _fs.File.AppendAllTextAsync(scenePath, fragment, cancellationToken);
         _logger.LogInformation("GameObject {Name} added to scene {Scene}", go.Name, scenePath);
     }
 
@@ -172,7 +177,7 @@ public class {scriptName} : MonoBehaviour
 
         UnityYamlWriter.ResetFileIdCounter();
         string yaml = UnityYamlWriter.WriteMaterial(matDef);
-        await File.WriteAllTextAsync(relativePath, yaml, cancellationToken);
+        await _fs.File.WriteAllTextAsync(relativePath, yaml, cancellationToken);
         _logger.LogInformation("Material created at {Path}", relativePath);
     }
 
@@ -183,29 +188,29 @@ public class {scriptName} : MonoBehaviour
         var go = DeserializeGameObject(prefabJson);
         UnityYamlWriter.ResetFileIdCounter();
         string yaml = UnityYamlWriter.WritePrefab(go);
-        await File.WriteAllTextAsync(relativePath, yaml, cancellationToken);
+        await _fs.File.WriteAllTextAsync(relativePath, yaml, cancellationToken);
         _logger.LogInformation("Prefab created at {Path}", relativePath);
     }
 
     public Task<string> ReadAssetAsync(string relativePath, CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(relativePath))
+        if (!_fs.File.Exists(relativePath))
             throw new FileNotFoundException($"File not found: {relativePath}");
 
-        return File.ReadAllTextAsync(relativePath, cancellationToken);
+        return _fs.File.ReadAllTextAsync(relativePath, cancellationToken);
     }
 
     public Task DeleteAssetAsync(string relativePath, CancellationToken cancellationToken = default)
     {
-        if (File.Exists(relativePath))
+        if (_fs.File.Exists(relativePath))
         {
-            File.Delete(relativePath);
+            _fs.File.Delete(relativePath);
             _logger.LogInformation("Deleted asset at {Path}", relativePath);
 
             // Also delete .meta sidecar if it exists
             string metaPath = relativePath + ".meta";
-            if (File.Exists(metaPath))
-                File.Delete(metaPath);
+            if (_fs.File.Exists(metaPath))
+                _fs.File.Delete(metaPath);
         }
         else
         {
@@ -415,59 +420,59 @@ public class {scriptName} : MonoBehaviour
 
     public async Task<string> ScaffoldProjectAsync(string projectName, string? outputRoot = null, string? unityVersion = null, CancellationToken cancellationToken = default)
     {
-        string root = outputRoot ?? Path.Combine(Directory.GetCurrentDirectory(), "output");
+        string root = outputRoot ?? _fs.Path.Combine(_fs.Directory.GetCurrentDirectory(), "output");
         string safeName = System.Text.RegularExpressions.Regex.Replace(projectName, @"[^a-zA-Z0-9_\-]", "_").Trim('_');
         if (string.IsNullOrEmpty(safeName)) safeName = "UnityProject";
 
-        string projectDir = Path.Combine(root, safeName);
+        string projectDir = _fs.Path.Combine(root, safeName);
 
         // Standard Unity folder structure
         string[] folders = {
             projectDir,
-            Path.Combine(projectDir, "Assets"),
-            Path.Combine(projectDir, "Assets", "Scripts"),
-            Path.Combine(projectDir, "Assets", "Scenes"),
-            Path.Combine(projectDir, "Assets", "Prefabs"),
-            Path.Combine(projectDir, "Assets", "Materials"),
-            Path.Combine(projectDir, "Assets", "Textures"),
-            Path.Combine(projectDir, "Assets", "Audio"),
-            Path.Combine(projectDir, "Assets", "Text"),
-            Path.Combine(projectDir, "ProjectSettings"),
-            Path.Combine(projectDir, "Packages"),
+            _fs.Path.Combine(projectDir, "Assets"),
+            _fs.Path.Combine(projectDir, "Assets", "Scripts"),
+            _fs.Path.Combine(projectDir, "Assets", "Scenes"),
+            _fs.Path.Combine(projectDir, "Assets", "Prefabs"),
+            _fs.Path.Combine(projectDir, "Assets", "Materials"),
+            _fs.Path.Combine(projectDir, "Assets", "Textures"),
+            _fs.Path.Combine(projectDir, "Assets", "Audio"),
+            _fs.Path.Combine(projectDir, "Assets", "Text"),
+            _fs.Path.Combine(projectDir, "ProjectSettings"),
+            _fs.Path.Combine(projectDir, "Packages"),
         };
 
         foreach (var folder in folders)
         {
-            Directory.CreateDirectory(folder);
-            await MetaFileWriter.WriteFolderMetaAsync(folder, ct: cancellationToken);
+            _fs.Directory.CreateDirectory(folder);
+            await _metaWriter.WriteFolderMetaAsync(folder, ct: cancellationToken);
         }
 
         // ProjectVersion.txt
         string version = unityVersion ?? "2022.3.0f1";
-        string versionFile = Path.Combine(projectDir, "ProjectSettings", "ProjectVersion.txt");
-        if (!File.Exists(versionFile))
+        string versionFile = _fs.Path.Combine(projectDir, "ProjectSettings", "ProjectVersion.txt");
+        if (!_fs.File.Exists(versionFile))
         {
-            await File.WriteAllTextAsync(versionFile,
+            await _fs.File.WriteAllTextAsync(versionFile,
                 $"m_EditorVersion: {version}\nm_EditorVersionWithRevision: {version} (placeholder)\n",
                 cancellationToken);
         }
 
         // Packages/manifest.json
-        string manifestPath = Path.Combine(projectDir, "Packages", "manifest.json");
-        if (!File.Exists(manifestPath))
+        string manifestPath = _fs.Path.Combine(projectDir, "Packages", "manifest.json");
+        if (!_fs.File.Exists(manifestPath))
         {
             string manifest = "{\n  \"dependencies\": {}\n}";
-            await File.WriteAllTextAsync(manifestPath, manifest, cancellationToken);
+            await _fs.File.WriteAllTextAsync(manifestPath, manifest, cancellationToken);
         }
 
         // README
-        string readmePath = Path.Combine(projectDir, "README.txt");
-        if (!File.Exists(readmePath))
+        string readmePath = _fs.Path.Combine(projectDir, "README.txt");
+        if (!_fs.File.Exists(readmePath))
         {
-            await File.WriteAllTextAsync(readmePath,
+            await _fs.File.WriteAllTextAsync(readmePath,
                 $"Generated by Unity MCP Server.\nProject: {projectName}\nImport this folder as a Unity project.\n",
                 cancellationToken);
-            await MetaFileWriter.WriteDefaultMetaAsync(readmePath, ct: cancellationToken);
+            await _metaWriter.WriteDefaultMetaAsync(readmePath, ct: cancellationToken);
         }
 
         _logger.LogInformation("Project scaffolded at {Path}", projectDir);
@@ -476,23 +481,23 @@ public class {scriptName} : MonoBehaviour
 
     public Task<string> GetProjectInfoAsync(string projectPath, CancellationToken cancellationToken = default)
     {
-        string name = Path.GetFileName(projectPath);
-        string versionPath = Path.Combine(projectPath, "ProjectSettings", "ProjectVersion.txt");
+        string name = _fs.Path.GetFileName(projectPath);
+        string versionPath = _fs.Path.Combine(projectPath, "ProjectSettings", "ProjectVersion.txt");
         string unityVersion = "unknown";
 
-        if (File.Exists(versionPath))
+        if (_fs.File.Exists(versionPath))
         {
-            string content = File.ReadAllText(versionPath);
+            string content = _fs.File.ReadAllText(versionPath);
             var match = System.Text.RegularExpressions.Regex.Match(content, @"m_EditorVersion:\s*(\S+)");
             if (match.Success) unityVersion = match.Groups[1].Value;
         }
 
-        bool hasAssets = Directory.Exists(Path.Combine(projectPath, "Assets"));
+        bool hasAssets = _fs.Directory.Exists(_fs.Path.Combine(projectPath, "Assets"));
 
         var info = JsonSerializer.Serialize(new
         {
             projectName = name,
-            projectPath = Path.GetFullPath(projectPath),
+            projectPath = _fs.Path.GetFullPath(projectPath),
             unityVersion,
             hasAssets,
         });
@@ -502,8 +507,8 @@ public class {scriptName} : MonoBehaviour
 
     public async Task CreateFolderAsync(string folderPath, CancellationToken cancellationToken = default)
     {
-        Directory.CreateDirectory(folderPath);
-        await MetaFileWriter.WriteFolderMetaAsync(folderPath, ct: cancellationToken);
+        _fs.Directory.CreateDirectory(folderPath);
+        await _metaWriter.WriteFolderMetaAsync(folderPath, ct: cancellationToken);
         _logger.LogInformation("Folder created at {Path} (with .meta)", folderPath);
     }
 
@@ -513,43 +518,43 @@ public class {scriptName} : MonoBehaviour
 
     public async Task SaveScriptAsync(string projectPath, string fileName, string content, CancellationToken cancellationToken = default)
     {
-        string dir = Path.Combine(projectPath, "Assets", "Scripts");
-        Directory.CreateDirectory(dir);
-        string filePath = Path.Combine(dir, fileName);
-        await File.WriteAllTextAsync(filePath, content, cancellationToken);
-        await MetaFileWriter.WriteScriptMetaAsync(filePath, ct: cancellationToken);
+        string dir = _fs.Path.Combine(projectPath, "Assets", "Scripts");
+        _fs.Directory.CreateDirectory(dir);
+        string filePath = _fs.Path.Combine(dir, fileName);
+        await _fs.File.WriteAllTextAsync(filePath, content, cancellationToken);
+        await _metaWriter.WriteScriptMetaAsync(filePath, ct: cancellationToken);
         _logger.LogInformation("Script saved at {Path} (with MonoImporter .meta)", filePath);
     }
 
     public async Task SaveTextAssetAsync(string projectPath, string fileName, string content, CancellationToken cancellationToken = default)
     {
-        string dir = Path.Combine(projectPath, "Assets", "Text");
-        Directory.CreateDirectory(dir);
-        string filePath = Path.Combine(dir, fileName);
-        await File.WriteAllTextAsync(filePath, content, cancellationToken);
-        await MetaFileWriter.WriteDefaultMetaAsync(filePath, ct: cancellationToken);
+        string dir = _fs.Path.Combine(projectPath, "Assets", "Text");
+        _fs.Directory.CreateDirectory(dir);
+        string filePath = _fs.Path.Combine(dir, fileName);
+        await _fs.File.WriteAllTextAsync(filePath, content, cancellationToken);
+        await _metaWriter.WriteDefaultMetaAsync(filePath, ct: cancellationToken);
         _logger.LogInformation("Text asset saved at {Path} (with .meta)", filePath);
     }
 
     public async Task SaveTextureAsync(string projectPath, string fileName, string base64Data, CancellationToken cancellationToken = default)
     {
-        string dir = Path.Combine(projectPath, "Assets", "Textures");
-        Directory.CreateDirectory(dir);
-        string filePath = Path.Combine(dir, fileName);
+        string dir = _fs.Path.Combine(projectPath, "Assets", "Textures");
+        _fs.Directory.CreateDirectory(dir);
+        string filePath = _fs.Path.Combine(dir, fileName);
         byte[] data = Convert.FromBase64String(base64Data);
-        await File.WriteAllBytesAsync(filePath, data, cancellationToken);
-        await MetaFileWriter.WriteTextureMetaAsync(filePath, ct: cancellationToken);
+        await _fs.File.WriteAllBytesAsync(filePath, data, cancellationToken);
+        await _metaWriter.WriteTextureMetaAsync(filePath, ct: cancellationToken);
         _logger.LogInformation("Texture saved at {Path} (with TextureImporter .meta)", filePath);
     }
 
     public async Task SaveAudioAsync(string projectPath, string fileName, string base64Data, CancellationToken cancellationToken = default)
     {
-        string dir = Path.Combine(projectPath, "Assets", "Audio");
-        Directory.CreateDirectory(dir);
-        string filePath = Path.Combine(dir, fileName);
+        string dir = _fs.Path.Combine(projectPath, "Assets", "Audio");
+        _fs.Directory.CreateDirectory(dir);
+        string filePath = _fs.Path.Combine(dir, fileName);
         byte[] data = Convert.FromBase64String(base64Data);
-        await File.WriteAllBytesAsync(filePath, data, cancellationToken);
-        await MetaFileWriter.WriteAudioMetaAsync(filePath, ct: cancellationToken);
+        await _fs.File.WriteAllBytesAsync(filePath, data, cancellationToken);
+        await _metaWriter.WriteAudioMetaAsync(filePath, ct: cancellationToken);
         _logger.LogInformation("Audio saved at {Path} (with AudioImporter .meta)", filePath);
     }
 
@@ -596,18 +601,18 @@ public class {scriptName} : MonoBehaviour
 
     public async Task AddPackagesAsync(string projectPath, string packagesJson, CancellationToken cancellationToken = default)
     {
-        string manifestPath = Path.Combine(projectPath, "Packages", "manifest.json");
+        string manifestPath = _fs.Path.Combine(projectPath, "Packages", "manifest.json");
 
         // Read existing manifest or create new
         JsonDocument existingDoc;
-        if (File.Exists(manifestPath))
+        if (_fs.File.Exists(manifestPath))
         {
-            string existing = await File.ReadAllTextAsync(manifestPath, cancellationToken);
+            string existing = await _fs.File.ReadAllTextAsync(manifestPath, cancellationToken);
             existingDoc = JsonDocument.Parse(existing);
         }
         else
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(manifestPath)!);
+            _fs.Directory.CreateDirectory(_fs.Path.GetDirectoryName(manifestPath)!);
             existingDoc = JsonDocument.Parse("{\"dependencies\":{}}");
         }
 
@@ -632,7 +637,7 @@ public class {scriptName} : MonoBehaviour
             ["dependencies"] = merged
         };
         string output = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
-        await File.WriteAllTextAsync(manifestPath, output, cancellationToken);
+        await _fs.File.WriteAllTextAsync(manifestPath, output, cancellationToken);
         _logger.LogInformation("Updated manifest.json with {Count} packages at {Path}", merged.Count, manifestPath);
     }
 
@@ -640,17 +645,17 @@ public class {scriptName} : MonoBehaviour
     // Utility
     // -----------------------------------------------------------------------
 
-    private static void EnsureDirectoryExists(string filePath)
+    private void EnsureDirectoryExists(string filePath)
     {
-        var dir = Path.GetDirectoryName(filePath);
-        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-            Directory.CreateDirectory(dir);
+        var dir = _fs.Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrEmpty(dir) && !_fs.Directory.Exists(dir))
+            _fs.Directory.CreateDirectory(dir);
     }
 
-    private static string FindUnityExecutable()
+    private string FindUnityExecutable()
     {
         var envPath = Environment.GetEnvironmentVariable("UNITY_EDITOR_PATH");
-        if (!string.IsNullOrEmpty(envPath) && File.Exists(envPath))
+        if (!string.IsNullOrEmpty(envPath) && _fs.File.Exists(envPath))
             return envPath;
 
         string[] candidates =
@@ -662,7 +667,7 @@ public class {scriptName} : MonoBehaviour
 
         foreach (var candidate in candidates)
         {
-            if (File.Exists(candidate)) return candidate;
+            if (_fs.File.Exists(candidate)) return candidate;
         }
 
         throw new FileNotFoundException(

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Abstractions;
+using System.IO.Abstractions.TestingHelpers;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -475,32 +477,27 @@ public class UnityToolsNewTests
 [TestFixture]
 public class MetaFileWriterTests
 {
-    private string _tempDir = null!;
+    private MockFileSystem _mockFs = null!;
+    private MetaFileWriter _writer = null!;
 
     [SetUp]
     public void SetUp()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "unity_meta_tests_" + Guid.NewGuid().ToString("N")[..8]);
-        Directory.CreateDirectory(_tempDir);
-    }
-
-    [TearDown]
-    public void TearDown()
-    {
-        if (Directory.Exists(_tempDir))
-            Directory.Delete(_tempDir, true);
+        _mockFs = new MockFileSystem();
+        _mockFs.Directory.CreateDirectory(@"C:\project");
+        _writer = new MetaFileWriter(_mockFs);
     }
 
     [Test]
     public async Task WriteScriptMeta_CreatesValidMetaFile()
     {
-        string scriptPath = Path.Combine(_tempDir, "Test.cs");
-        await File.WriteAllTextAsync(scriptPath, "class Test {}");
-        await MetaFileWriter.WriteScriptMetaAsync(scriptPath);
+        string scriptPath = @"C:\project\Test.cs";
+        _mockFs.File.WriteAllText(scriptPath, "class Test {}");
+        await _writer.WriteScriptMetaAsync(scriptPath);
 
         string metaPath = scriptPath + ".meta";
-        Assert.That(File.Exists(metaPath), Is.True);
-        string content = await File.ReadAllTextAsync(metaPath);
+        Assert.That(_mockFs.File.Exists(metaPath), Is.True);
+        string content = _mockFs.File.ReadAllText(metaPath);
         Assert.That(content, Does.Contain("MonoImporter:"));
         Assert.That(content, Does.Contain("fileFormatVersion: 2"));
         Assert.That(content, Does.Contain("guid:"));
@@ -509,22 +506,22 @@ public class MetaFileWriterTests
     [Test]
     public async Task WriteDefaultMeta_CreatesValidMetaFile()
     {
-        string txtPath = Path.Combine(_tempDir, "readme.txt");
-        await File.WriteAllTextAsync(txtPath, "hello");
-        await MetaFileWriter.WriteDefaultMetaAsync(txtPath);
+        string txtPath = @"C:\project\readme.txt";
+        _mockFs.File.WriteAllText(txtPath, "hello");
+        await _writer.WriteDefaultMetaAsync(txtPath);
 
-        string content = await File.ReadAllTextAsync(txtPath + ".meta");
+        string content = _mockFs.File.ReadAllText(txtPath + ".meta");
         Assert.That(content, Does.Contain("DefaultImporter:"));
     }
 
     [Test]
     public async Task WriteTextureMeta_ContainsTextureImporter()
     {
-        string imgPath = Path.Combine(_tempDir, "img.png");
-        await File.WriteAllBytesAsync(imgPath, new byte[] { 0x89, 0x50, 0x4E, 0x47 });
-        await MetaFileWriter.WriteTextureMetaAsync(imgPath);
+        string imgPath = @"C:\project\img.png";
+        _mockFs.File.WriteAllBytes(imgPath, new byte[] { 0x89, 0x50, 0x4E, 0x47 });
+        await _writer.WriteTextureMetaAsync(imgPath);
 
-        string content = await File.ReadAllTextAsync(imgPath + ".meta");
+        string content = _mockFs.File.ReadAllText(imgPath + ".meta");
         Assert.That(content, Does.Contain("TextureImporter:"));
         Assert.That(content, Does.Contain("maxTextureSize: 2048"));
     }
@@ -532,11 +529,11 @@ public class MetaFileWriterTests
     [Test]
     public async Task WriteAudioMeta_ContainsAudioImporter()
     {
-        string audioPath = Path.Combine(_tempDir, "clip.mp3");
-        await File.WriteAllBytesAsync(audioPath, new byte[] { 0xFF, 0xFB });
-        await MetaFileWriter.WriteAudioMetaAsync(audioPath);
+        string audioPath = @"C:\project\clip.mp3";
+        _mockFs.File.WriteAllBytes(audioPath, new byte[] { 0xFF, 0xFB });
+        await _writer.WriteAudioMetaAsync(audioPath);
 
-        string content = await File.ReadAllTextAsync(audioPath + ".meta");
+        string content = _mockFs.File.ReadAllText(audioPath + ".meta");
         Assert.That(content, Does.Contain("AudioImporter:"));
         Assert.That(content, Does.Contain("sampleRateOverride: 44100"));
     }
@@ -544,11 +541,11 @@ public class MetaFileWriterTests
     [Test]
     public async Task WriteFolderMeta_ContainsFolderAsset()
     {
-        string folder = Path.Combine(_tempDir, "MyFolder");
-        Directory.CreateDirectory(folder);
-        await MetaFileWriter.WriteFolderMetaAsync(folder);
+        string folder = @"C:\project\MyFolder";
+        _mockFs.Directory.CreateDirectory(folder);
+        await _writer.WriteFolderMetaAsync(folder);
 
-        string content = await File.ReadAllTextAsync(folder + ".meta");
+        string content = _mockFs.File.ReadAllText(folder + ".meta");
         Assert.That(content, Does.Contain("folderAsset: yes"));
         Assert.That(content, Does.Contain("DefaultImporter:"));
     }
@@ -569,145 +566,136 @@ public class MetaFileWriterTests
 [TestFixture]
 public class FileUnityServiceNewToolsTests
 {
+    private MockFileSystem _mockFs = null!;
     private FileUnityService _service = null!;
-    private string _tempDir = null!;
 
     [SetUp]
     public void SetUp()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "unity_svc_tests_" + Guid.NewGuid().ToString("N")[..8]);
-        Directory.CreateDirectory(_tempDir);
-
+        _mockFs = new MockFileSystem();
         var logger = Substitute.For<Microsoft.Extensions.Logging.ILogger<FileUnityService>>();
         var processRunner = Substitute.For<IProcessRunner>();
-        _service = new FileUnityService(logger, processRunner);
-    }
-
-    [TearDown]
-    public void TearDown()
-    {
-        if (Directory.Exists(_tempDir))
-            Directory.Delete(_tempDir, true);
+        _service = new FileUnityService(logger, processRunner, _mockFs);
     }
 
     [Test]
     public async Task ScaffoldProject_CreatesAllFolders()
     {
-        string projectPath = await _service.ScaffoldProjectAsync("TestProject", _tempDir);
+        string projectPath = await _service.ScaffoldProjectAsync("TestProject", @"C:\output");
 
-        Assert.That(Directory.Exists(Path.Combine(projectPath, "Assets")), Is.True);
-        Assert.That(Directory.Exists(Path.Combine(projectPath, "Assets", "Scripts")), Is.True);
-        Assert.That(Directory.Exists(Path.Combine(projectPath, "Assets", "Textures")), Is.True);
-        Assert.That(Directory.Exists(Path.Combine(projectPath, "Assets", "Audio")), Is.True);
-        Assert.That(Directory.Exists(Path.Combine(projectPath, "Assets", "Text")), Is.True);
-        Assert.That(Directory.Exists(Path.Combine(projectPath, "ProjectSettings")), Is.True);
-        Assert.That(Directory.Exists(Path.Combine(projectPath, "Packages")), Is.True);
+        Assert.That(_mockFs.Directory.Exists(_mockFs.Path.Combine(projectPath, "Assets")), Is.True);
+        Assert.That(_mockFs.Directory.Exists(_mockFs.Path.Combine(projectPath, "Assets", "Scripts")), Is.True);
+        Assert.That(_mockFs.Directory.Exists(_mockFs.Path.Combine(projectPath, "Assets", "Textures")), Is.True);
+        Assert.That(_mockFs.Directory.Exists(_mockFs.Path.Combine(projectPath, "Assets", "Audio")), Is.True);
+        Assert.That(_mockFs.Directory.Exists(_mockFs.Path.Combine(projectPath, "Assets", "Text")), Is.True);
+        Assert.That(_mockFs.Directory.Exists(_mockFs.Path.Combine(projectPath, "ProjectSettings")), Is.True);
+        Assert.That(_mockFs.Directory.Exists(_mockFs.Path.Combine(projectPath, "Packages")), Is.True);
     }
 
     [Test]
     public async Task ScaffoldProject_CreatesMetaSidecars()
     {
-        string projectPath = await _service.ScaffoldProjectAsync("MetaTest", _tempDir);
+        string projectPath = await _service.ScaffoldProjectAsync("MetaTest", @"C:\output");
 
         // Assets folder should have a .meta
-        Assert.That(File.Exists(Path.Combine(projectPath, "Assets") + ".meta"), Is.True);
-        Assert.That(File.Exists(Path.Combine(projectPath, "Assets", "Scripts") + ".meta"), Is.True);
+        Assert.That(_mockFs.File.Exists(_mockFs.Path.Combine(projectPath, "Assets") + ".meta"), Is.True);
+        Assert.That(_mockFs.File.Exists(_mockFs.Path.Combine(projectPath, "Assets", "Scripts") + ".meta"), Is.True);
     }
 
     [Test]
     public async Task ScaffoldProject_CreatesProjectVersion()
     {
-        string projectPath = await _service.ScaffoldProjectAsync("VersionTest", _tempDir, "2023.2.0f1");
+        string projectPath = await _service.ScaffoldProjectAsync("VersionTest", @"C:\output", "2023.2.0f1");
 
-        string versionContent = await File.ReadAllTextAsync(
-            Path.Combine(projectPath, "ProjectSettings", "ProjectVersion.txt"));
+        string versionContent = _mockFs.File.ReadAllText(
+            _mockFs.Path.Combine(projectPath, "ProjectSettings", "ProjectVersion.txt"));
         Assert.That(versionContent, Does.Contain("2023.2.0f1"));
     }
 
     [Test]
     public async Task ScaffoldProject_IsIdempotent()
     {
-        string path1 = await _service.ScaffoldProjectAsync("Idem", _tempDir);
-        string path2 = await _service.ScaffoldProjectAsync("Idem", _tempDir);
+        string path1 = await _service.ScaffoldProjectAsync("Idem", @"C:\output");
+        string path2 = await _service.ScaffoldProjectAsync("Idem", @"C:\output");
         Assert.That(path1, Is.EqualTo(path2));
     }
 
     [Test]
     public async Task ScaffoldProject_SanitizesName()
     {
-        string path = await _service.ScaffoldProjectAsync("My Game!!! (alpha)", _tempDir);
-        Assert.That(Path.GetFileName(path), Does.Not.Contain(" "));
-        Assert.That(Path.GetFileName(path), Does.Not.Contain("!"));
+        string path = await _service.ScaffoldProjectAsync("My Game!!! (alpha)", @"C:\output");
+        Assert.That(_mockFs.Path.GetFileName(path), Does.Not.Contain(" "));
+        Assert.That(_mockFs.Path.GetFileName(path), Does.Not.Contain("!"));
     }
 
     [Test]
     public async Task CreateFolder_CreatesWithMeta()
     {
-        string folder = Path.Combine(_tempDir, "Assets", "Custom");
+        string folder = @"C:\output\Assets\Custom";
         await _service.CreateFolderAsync(folder);
 
-        Assert.That(Directory.Exists(folder), Is.True);
-        Assert.That(File.Exists(folder + ".meta"), Is.True);
+        Assert.That(_mockFs.Directory.Exists(folder), Is.True);
+        Assert.That(_mockFs.File.Exists(folder + ".meta"), Is.True);
     }
 
     [Test]
     public async Task SaveScript_CreatesFileAndMeta()
     {
         // First scaffold so the project structure exists
-        string proj = await _service.ScaffoldProjectAsync("ScriptTest", _tempDir);
+        string proj = await _service.ScaffoldProjectAsync("ScriptTest", @"C:\output");
         await _service.SaveScriptAsync(proj, "Player.cs", "using UnityEngine;\npublic class Player : MonoBehaviour {}");
 
-        string scriptPath = Path.Combine(proj, "Assets", "Scripts", "Player.cs");
-        Assert.That(File.Exists(scriptPath), Is.True);
-        Assert.That(File.Exists(scriptPath + ".meta"), Is.True);
+        string scriptPath = _mockFs.Path.Combine(proj, "Assets", "Scripts", "Player.cs");
+        Assert.That(_mockFs.File.Exists(scriptPath), Is.True);
+        Assert.That(_mockFs.File.Exists(scriptPath + ".meta"), Is.True);
 
-        string meta = await File.ReadAllTextAsync(scriptPath + ".meta");
+        string meta = _mockFs.File.ReadAllText(scriptPath + ".meta");
         Assert.That(meta, Does.Contain("MonoImporter:"));
     }
 
     [Test]
     public async Task SaveTextAsset_CreatesFileAndMeta()
     {
-        string proj = await _service.ScaffoldProjectAsync("TextTest", _tempDir);
+        string proj = await _service.ScaffoldProjectAsync("TextTest", @"C:\output");
         await _service.SaveTextAssetAsync(proj, "info.txt", "Hello World");
 
-        string filePath = Path.Combine(proj, "Assets", "Text", "info.txt");
-        Assert.That(File.Exists(filePath), Is.True);
-        Assert.That(File.Exists(filePath + ".meta"), Is.True);
+        string filePath = _mockFs.Path.Combine(proj, "Assets", "Text", "info.txt");
+        Assert.That(_mockFs.File.Exists(filePath), Is.True);
+        Assert.That(_mockFs.File.Exists(filePath + ".meta"), Is.True);
     }
 
     [Test]
     public async Task SaveTexture_CreatesFileAndMeta()
     {
-        string proj = await _service.ScaffoldProjectAsync("TexTest", _tempDir);
+        string proj = await _service.ScaffoldProjectAsync("TexTest", @"C:\output");
         string base64 = Convert.ToBase64String(new byte[] { 0x89, 0x50, 0x4E, 0x47 });
         await _service.SaveTextureAsync(proj, "sprite.png", base64);
 
-        string filePath = Path.Combine(proj, "Assets", "Textures", "sprite.png");
-        Assert.That(File.Exists(filePath), Is.True);
+        string filePath = _mockFs.Path.Combine(proj, "Assets", "Textures", "sprite.png");
+        Assert.That(_mockFs.File.Exists(filePath), Is.True);
 
-        string meta = await File.ReadAllTextAsync(filePath + ".meta");
+        string meta = _mockFs.File.ReadAllText(filePath + ".meta");
         Assert.That(meta, Does.Contain("TextureImporter:"));
     }
 
     [Test]
     public async Task SaveAudio_CreatesFileAndMeta()
     {
-        string proj = await _service.ScaffoldProjectAsync("AudioTest", _tempDir);
+        string proj = await _service.ScaffoldProjectAsync("AudioTest", @"C:\output");
         string base64 = Convert.ToBase64String(new byte[] { 0xFF, 0xFB, 0x90 });
         await _service.SaveAudioAsync(proj, "sfx.mp3", base64);
 
-        string filePath = Path.Combine(proj, "Assets", "Audio", "sfx.mp3");
-        Assert.That(File.Exists(filePath), Is.True);
+        string filePath = _mockFs.Path.Combine(proj, "Assets", "Audio", "sfx.mp3");
+        Assert.That(_mockFs.File.Exists(filePath), Is.True);
 
-        string meta = await File.ReadAllTextAsync(filePath + ".meta");
+        string meta = _mockFs.File.ReadAllText(filePath + ".meta");
         Assert.That(meta, Does.Contain("AudioImporter:"));
     }
 
     [Test]
     public async Task GetProjectInfo_ReturnsCorrectJson()
     {
-        string proj = await _service.ScaffoldProjectAsync("InfoTest", _tempDir, "2022.3.0f1");
+        string proj = await _service.ScaffoldProjectAsync("InfoTest", @"C:\output", "2022.3.0f1");
         string info = await _service.GetProjectInfoAsync(proj);
 
         Assert.That(info, Does.Contain("InfoTest"));
@@ -743,10 +731,10 @@ public class FileUnityServiceNewToolsTests
     [Test]
     public async Task AddPackages_CreatesManifest()
     {
-        string proj = await _service.ScaffoldProjectAsync("PkgTest", _tempDir);
+        string proj = await _service.ScaffoldProjectAsync("PkgTest", @"C:\output");
         await _service.AddPackagesAsync(proj, "{\"com.unity.textmeshpro\":\"3.0.6\"}");
 
-        string manifest = await File.ReadAllTextAsync(Path.Combine(proj, "Packages", "manifest.json"));
+        string manifest = _mockFs.File.ReadAllText(_mockFs.Path.Combine(proj, "Packages", "manifest.json"));
         Assert.That(manifest, Does.Contain("com.unity.textmeshpro"));
         Assert.That(manifest, Does.Contain("3.0.6"));
     }
@@ -754,11 +742,11 @@ public class FileUnityServiceNewToolsTests
     [Test]
     public async Task AddPackages_MergesWithExisting()
     {
-        string proj = await _service.ScaffoldProjectAsync("MergeTest", _tempDir);
+        string proj = await _service.ScaffoldProjectAsync("MergeTest", @"C:\output");
         await _service.AddPackagesAsync(proj, "{\"com.unity.urp\":\"14.0.0\"}");
         await _service.AddPackagesAsync(proj, "{\"com.unity.textmeshpro\":\"3.0.6\"}");
 
-        string manifest = await File.ReadAllTextAsync(Path.Combine(proj, "Packages", "manifest.json"));
+        string manifest = _mockFs.File.ReadAllText(_mockFs.Path.Combine(proj, "Packages", "manifest.json"));
         Assert.That(manifest, Does.Contain("com.unity.urp"));
         Assert.That(manifest, Does.Contain("com.unity.textmeshpro"));
     }
