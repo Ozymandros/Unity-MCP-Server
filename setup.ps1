@@ -9,7 +9,7 @@ Write-Host "Found .NET SDK version: $dotnetVersion"
 
 # Restore and Build
 Write-Host "Restoring dependencies..."
-dotnet restore
+dotnet restore .\Unity-MCP-Server.sln
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Failed to restore dependencies."
@@ -17,7 +17,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "Building solution..."
-dotnet build --configuration Release
+dotnet build .\Unity-MCP-Server.sln --configuration Release
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "Build successful! You can now configure Claude Desktop." -ForegroundColor Green

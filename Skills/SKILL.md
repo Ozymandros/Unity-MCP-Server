@@ -5,6 +5,45 @@ description: Full-featured Model Context Protocol (MCP) server for Unity Editor 
 
 # Unity MCP Server Skill
 
+
+## Installation & Update
+
+To install or update the Unity MCP Server as a global .NET tool:
+
+1. Run the provided PowerShell script from the repo root:
+
+  ```powershell
+  ./install-tool.ps1
+  ```
+
+  This will:
+  - Uninstall any existing global UnityMcp.Server tool
+  - Build the solution in Release mode
+  - Pack the UnityMcp.Server project (creates .nupkg in UnityMcp.Server/nupkg/)
+  - Update the global tool from the local nupkg directory
+
+  Equivalent manual steps (mutatis mutandis for your environment):
+  ```shell
+  dotnet tool uninstall --global UnityMcp.Server
+  dotnet build UnityMcpServer.slnx --configuration Release
+  dotnet pack UnityMcp.Server/UnityMcp.Server.csproj -c Release
+  dotnet tool update --global --add-source UnityMcp.Server/nupkg UnityMcp.Server
+  ```
+
+2. After installation, you can run the server from anywhere using:
+
+  ```shell
+  unity-mcp
+  ```
+
+3. To test the tool with the official Inspector:
+
+  ```shell
+  npx @modelcontextprotocol/inspector unity-mcp
+  ```
+
+# Unity MCP Server Skill
+
 Pure .NET MCP server that bridges AI agents and Unity projects. Creates valid Unity YAML files (scenes, prefabs, materials) and proper `.meta` sidecars directly on disk. Uses the [official C# MCP SDK](https://github.com/modelcontextprotocol/csharp-sdk).
 
 ## 🚀 Core Capabilities

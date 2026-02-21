@@ -1,34 +1,50 @@
-# Build and Pack the Unity MCP Server as a Global .NET Tool
 
-# 1. Clean up old packages
-if (Test-Path "./dist") {
-    Remove-Item -Recurse -Force "./dist"
-}
 
-# 2. Create the package and output to 'dist' folder at root
-Write-Host "Packing UnityMcp.Server..." -ForegroundColor Cyan
-dotnet pack UnityMcp.Server/UnityMcp.Server.csproj -c Release -o ./dist
 
+# install-tool.ps1 — Build, pack, and update the UnityMcp.Server .NET global tool
+#
+# Usage: Run this script from the repo root to update your global UnityMcp.Server tool.
+#
+# Steps performed (exactly as required):
+#   1. Uninstall any existing global UnityMcp.Server tool
+#   2. Build the solution in Release mode
+#   3. Pack the solution (creates .nupkg in UnityMcp.Server/nupkg/)
+#   4. Update the global tool from the explicit nupkg directory
+#
+# Equivalent manual commands:
+#   dotnet tool uninstall --global UnityMcp.Server
+#   dotnet build Unity-MCP-Server.sln --configuration Release
+#   dotnet pack -c Release
+#   dotnet tool update --global --add-source "C:\Projects\Unity-MCP-Server\UnityMcp.Server\nupkg" UnityMcp.Server
+#
+# To test the tool with Inspector:
+#   npx @modelcontextprotocol/inspector unity-mcp
+
+Write-Host "Uninstalling any existing UnityMcp.Server tool..." -ForegroundColor Yellow
+dotnet tool uninstall --global UnityMcp.Server
+
+Write-Host "Building solution in Release mode..." -ForegroundColor Cyan
+dotnet build Unity-MCP-Server.sln --configuration Release
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Failed to pack the project."
+    Write-Error "Build failed."
     exit 1
 }
 
-# 3. Check if tool is already installed and uninstall if necessary
-$toolCheck = dotnet tool list --global | Select-String "unitymcp.server"
-if ($toolCheck) {
-    Write-Host "Uninstalling existing version..." -ForegroundColor Yellow
-    dotnet tool uninstall --global UnityMcp.Server
+Write-Host "Packing solution in Release mode..." -ForegroundColor Cyan
+dotnet pack -c Release
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Pack failed."
+    exit 1
 }
 
-# 4. Install the tool using the local 'dist' folder as source
-Write-Host "Installing Unity-MCP as a global tool..." -ForegroundColor Green
-dotnet tool install --global --add-source ./dist UnityMcp.Server
-
+$nupkgPath = "C:\Projects\Unity-MCP-Server\UnityMcp.Server\nupkg"
+Write-Host "Updating global tool from $nupkgPath..." -ForegroundColor Green
+dotnet tool update --global --add-source $nupkgPath UnityMcp.Server
 if ($LASTEXITCODE -eq 0) {
     Write-Host "`nInstallation successful!" -ForegroundColor Green
     Write-Host "You can now run the server from anywhere using: " -NoNewline
     Write-Host "unity-mcp" -ForegroundColor Cyan
+    Write-Host "\nTo test with Inspector, run: npx @modelcontextprotocol/inspector unity-mcp" -ForegroundColor Magenta
 } else {
     Write-Error "Installation failed."
     exit 1
