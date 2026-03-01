@@ -1,6 +1,3 @@
-
-
-
 # install-tool.ps1 — Build, pack, and update the UnityMcp.Server .NET global tool
 #
 # Usage: Run this script from the repo root to update your global UnityMcp.Server tool.
@@ -20,6 +17,9 @@
 # To test the tool with Inspector:
 #   npx @modelcontextprotocol/inspector unity-mcp
 
+# Resolve script root reliably (works when invoked from any cwd)
+$scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Definition }
+
 Write-Host "Uninstalling any existing UnityMcp.Server tool..." -ForegroundColor Yellow
 dotnet tool uninstall --global UnityMcp.Server
 
@@ -30,14 +30,20 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Host "Packing solution in Release mode..." -ForegroundColor Cyan
-dotnet pack -c Release
+# Use a relative path based on the script location and ensure directory exists
+$nupkgPath = Join-Path -Path $scriptRoot -ChildPath "UnityMcp.Server\nupkg"
+if (-not (Test-Path $nupkgPath)) {
+    New-Item -ItemType Directory -Path $nupkgPath | Out-Null
+}
+
+Write-Host "Packing UnityMcp.Server project in Release mode (output -> $nupkgPath)..." -ForegroundColor Cyan
+# Pack only the server project to avoid MSBuild ambiguity when multiple projects are present
+dotnet pack .\UnityMcp.Server\UnityMcp.Server.csproj -c Release -o $nupkgPath
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Pack failed."
     exit 1
 }
 
-$nupkgPath = "C:\Projects\Unity-MCP-Server\UnityMcp.Server\nupkg"
 Write-Host "Updating global tool from $nupkgPath..." -ForegroundColor Green
 dotnet tool update --global --add-source $nupkgPath UnityMcp.Server
 if ($LASTEXITCODE -eq 0) {

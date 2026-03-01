@@ -139,4 +139,32 @@ public interface IUnityService
     /// Adds UPM packages to Packages/manifest.json.
     /// </summary>
     Task AddPackagesAsync(string projectPath, string packagesJson, CancellationToken cancellationToken = default);
+
+    // -----------------------------------------------------------------------
+    // MCP-Unity contract tools (return JSON for client parsing)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Installs UPM packages by ID (adds to manifest with default version if needed).
+    /// Returns JSON: success, installed (string[]), message.
+    /// </summary>
+    Task<string> InstallPackagesAsync(string projectPath, IReadOnlyList<string> packageIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates the default scene (camera, directional light, ground plane) and Ground prefab.
+    /// Returns JSON: success, scene_path, prefab_path, message.
+    /// </summary>
+    Task<string> CreateDefaultSceneAsync(string projectPath, string sceneName, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Configures URP: Linear color space, TagManager tags/layers, default render pipeline.
+    /// Returns JSON: success, message.
+    /// </summary>
+    Task<string> ConfigureUrpAsync(string projectPath, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Validates import (asset refresh + compilation); reports errors and warnings.
+    /// Returns JSON: success, error_count, warning_count, errors, warnings, message.
+    /// </summary>
+    Task<string> ValidateImportAsync(string projectPath, CancellationToken cancellationToken = default);
 }

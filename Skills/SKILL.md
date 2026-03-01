@@ -86,7 +86,7 @@ Save AI-generated content into the correct Unity folder with the matching import
 - **Multi-platform builds**: Win64, OSX, Linux64, Android, iOS via Unity CLI batch mode
 - **Error reporting**: Build failures surfaced to the agent
 
-## 📖 Complete Tool Reference (22 tools)
+## 📖 Complete Tool Reference (26 tools)
 
 ### 📡 Connectivity
 
@@ -143,6 +143,19 @@ Save AI-generated content into the correct Unity folder with the matching import
 |:---|:---|:---|
 | `unity_validate_csharp` | Check C# syntax (braces, parens, class) → JSON result | `code` |
 | `unity_add_packages` | Add UPM packages to manifest.json | `projectPath`, `packagesJson` |
+
+### 🔌 MCP-Unity contract tools (JSON return)
+
+All take `project_path` (absolute path to Unity project root). Return JSON for client parsing. Optional timeout applies when supported by transport.
+
+| Tool | Description | Parameters | Return JSON |
+|:---|:---|:---|:---|
+| `unity_install_packages` | Install UPM packages by ID (add to manifest in order; default version if not sent) | `project_path`, `packages` (string[]) | `success`, `installed` (string[]), `message?` |
+| `unity_create_default_scene` | Default scene: Main Camera (0,1,-10, Skybox), Directional Light (50,-30,0), Ground plane (5,1,5); scene + Ground.prefab | `project_path`, `scene_name` | `success`, `scene_path?`, `prefab_path?`, `message?` |
+| `unity_configure_urp` | Linear color space, TagManager (tags Generated/AutoSetup, layers 8–9), default render pipeline | `project_path` | `success`, `message?` |
+| `unity_validate_import` | Asset refresh + script compilation; errors and warnings (file-only stub: success, 0 counts until Unity batch integrated) | `project_path` | `success`, `error_count`, `warning_count`, `errors?`, `warnings?`, `message?` |
+
+On failure for any tool: `success: false` and `message` (and tool-specific fields as applicable).
 
 ### 🏗️ Build
 
@@ -215,3 +228,21 @@ Save AI-generated content into the correct Unity folder with the matching import
 ```
 
 No Unity DLLs required. The server writes Unity-compatible YAML directly.
+
+## Adding this SKILL to a Client Project
+
+From your client project directory, run:
+
+```sh
+npx skills add ../Unity-MCP-Server/Skills --skill SKILL
+```
+
+- Replace `../Unity-MCP-Server/Skills` with the actual path to your SKILL folder if different.
+- Replace `SKILL` with the actual skill name if needed.
+
+This will register the local SKILL with your client project, making it available for use with MCP-compatible tools and agents.
+
+**Example:**
+```sh
+npx skills add ../Unity-MCP-Server/Skills --skill unity-mcp
+```

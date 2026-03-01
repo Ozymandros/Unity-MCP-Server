@@ -347,5 +347,63 @@ public static class UnityTools
         await unityService.AddPackagesAsync(projectPath, packagesJson, cancellationToken);
         return $"Packages added to {projectPath}/Packages/manifest.json";
     }
+
+    // -----------------------------------------------------------------------
+    // MCP-Unity contract tools (return JSON for client parsing)
+    // -----------------------------------------------------------------------
+
+    [McpServerTool(Name = "unity_install_packages"), Description(
+        "Install UPM packages by ID. Adds each package to Packages/manifest.json in order (default version if not specified). " +
+        "Returns JSON: success, installed (string[]), message.")]
+    public static async Task<string> InstallPackages(
+        IUnityService unityService,
+        [Description("Absolute path to the Unity project root")]
+        string project_path,
+        [Description("Array of UPM package IDs, e.g. com.unity.render-pipelines.universal")]
+        IEnumerable<string> packages,
+        CancellationToken cancellationToken = default)
+    {
+        var list = packages != null ? new List<string>(packages) : new List<string>();
+        return await unityService.InstallPackagesAsync(project_path, list, cancellationToken);
+    }
+
+    [McpServerTool(Name = "unity_create_default_scene"), Description(
+        "Create the default scene (Main Camera, Directional Light, Ground plane) and save Ground as prefab. " +
+        "Scene at Assets/Scenes/{scene_name}.unity, prefab at Assets/Prefabs/Ground.prefab. " +
+        "Returns JSON: success, scene_path, prefab_path, message.")]
+    public static async Task<string> CreateDefaultScene(
+        IUnityService unityService,
+        [Description("Absolute path to the Unity project root")]
+        string project_path,
+        [Description("Scene name without extension (e.g. MainScene)")]
+        string scene_name,
+        CancellationToken cancellationToken = default)
+    {
+        return await unityService.CreateDefaultSceneAsync(project_path, scene_name ?? "MainScene", cancellationToken);
+    }
+
+    [McpServerTool(Name = "unity_configure_urp"), Description(
+        "Configure URP: Linear color space, TagManager tags (Generated, AutoSetup) and layers 8–9 (CustomLayer1, CustomLayer2), default render pipeline. " +
+        "Returns JSON: success, message.")]
+    public static async Task<string> ConfigureUrp(
+        IUnityService unityService,
+        [Description("Absolute path to the Unity project root")]
+        string project_path,
+        CancellationToken cancellationToken = default)
+    {
+        return await unityService.ConfigureUrpAsync(project_path, cancellationToken);
+    }
+
+    [McpServerTool(Name = "unity_validate_import"), Description(
+        "Full asset refresh and script compilation; report errors and warnings. " +
+        "Returns JSON: success, error_count, warning_count, errors, warnings, message. success is true only when error_count is 0.")]
+    public static async Task<string> ValidateImport(
+        IUnityService unityService,
+        [Description("Absolute path to the Unity project root")]
+        string project_path,
+        CancellationToken cancellationToken = default)
+    {
+        return await unityService.ValidateImportAsync(project_path, cancellationToken);
+    }
 }
 

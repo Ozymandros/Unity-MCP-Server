@@ -414,6 +414,21 @@ public class {scriptName} : MonoBehaviour
         };
     }
 
+    private static GameObjectDef CreateDefaultGroundPlane()
+    {
+        return new GameObjectDef
+        {
+            Name = "Ground",
+            Position = new Vector3Def(0, 0, 0),
+            Scale = new Vector3Def(5, 1, 5),
+            Components =
+            [
+                new ComponentDef(UnityYamlWriter.ClassId_MeshFilter) { Properties = { ["mesh"] = "Plane" } },
+                new ComponentDef(UnityYamlWriter.ClassId_MeshRenderer)
+            ]
+        };
+    }
+
     // -----------------------------------------------------------------------
     // Project scaffolding & management
     // -----------------------------------------------------------------------
@@ -639,6 +654,202 @@ public class {scriptName} : MonoBehaviour
         string output = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
         await _fs.File.WriteAllTextAsync(manifestPath, output, cancellationToken);
         _logger.LogInformation("Updated manifest.json with {Count} packages at {Path}", merged.Count, manifestPath);
+    }
+
+    // -----------------------------------------------------------------------
+    // MCP-Unity contract tools (return JSON)
+    // -----------------------------------------------------------------------
+
+    private static readonly IReadOnlyDictionary<string, string> DefaultPackageVersions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["com.unity.render-pipelines.universal"] = "14.0.11",
+        ["com.unity.render-pipelines.core"] = "14.0.11",
+        ["com.unity.textmeshpro"] = "3.0.6",
+    };
+
+    public async Task<string> InstallPackagesAsync(string projectPath, IReadOnlyList<string> packageIds, CancellationToken cancellationToken = default)
+    {
+        var installed = new List<string>();
+        try
+        {
+            string manifestPath = _fs.Path.Combine(projectPath, "Packages", "manifest.json");
+            string? dir = _fs.Path.GetDirectoryName(manifestPath);
+            if (!string.IsNullOrEmpty(dir) && !_fs.Directory.Exists(dir))
+                _fs.Directory.CreateDirectory(dir);
+
+            JsonDocument existingDoc;
+            if (_fs.File.Exists(manifestPath))
+            {
+                string existing = await _fs.File.ReadAllTextAsync(manifestPath, cancellationToken);
+                existingDoc = JsonDocument.Parse(existing);
+            }
+            else
+            {
+                existingDoc = JsonDocument.Parse("{\"dependencies\":{}}");
+            }
+
+            var merged = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (existingDoc.RootElement.TryGetProperty("dependencies", out var deps))
+            {
+                foreach (var prop in deps.EnumerateObject())
+                    merged[prop.Name] = prop.Value.GetString() ?? "";
+            }
+
+            foreach (string id in packageIds)
+            {
+                if (string.IsNullOrWhiteSpace(id)) continue;
+                string version = DefaultPackageVersions.TryGetValue(id, out var v) ? v : "1.0.0";
+                merged[id] = version;
+                installed.Add(id);
+            }
+
+            var result = new Dictionary<string, object> { ["dependencies"] = merged };
+            string output = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
+            await _fs.File.WriteAllTextAsync(manifestPath, output, cancellationToken);
+            _logger.LogInformation("Installed {Count} packages at {Path}", installed.Count, manifestPath);
+
+            return JsonSerializer.Serialize(new { success = true, installed, message = (string?)null });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "InstallPackages failed for {Path}", projectPath);
+            return JsonSerializer.Serialize(new { success = false, installed = Array.Empty<string>(), message = ex.Message });
+        }
+    }
+
+    public async Task<string> CreateDefaultSceneAsync(string projectPath, string sceneName, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            string scenesDir = _fs.Path.Combine(projectPath, "Assets", "Scenes");
+            string prefabsDir = _fs.Path.Combine(projectPath, "Assets", "Prefabs");
+            _fs.Directory.CreateDirectory(scenesDir);
+            _fs.Directory.CreateDirectory(prefabsDir);
+            await _metaWriter.WriteFolderMetaAsync(scenesDir, ct: cancellationToken);
+            await _metaWriter.WriteFolderMetaAsync(prefabsDir, ct: cancellationToken);
+
+            string scenePath = _fs.Path.Combine(scenesDir, sceneName + ".unity");
+            string prefabPath = _fs.Path.Combine(prefabsDir, "Ground.prefab");
+
+            var camera = CreateDefaultCamera();
+            var light = CreateDefaultLight();
+            var ground = CreateDefaultGroundPlane();
+
+            UnityYamlWriter.ResetFileIdCounter();
+            string sceneYaml = UnityYamlWriter.WriteScene(new[] { camera, light, ground });
+            await _fs.File.WriteAllTextAsync(scenePath, sceneYaml, cancellationToken);
+            await _metaWriter.WriteDefaultMetaAsync(scenePath, ct: cancellationToken);
+
+            UnityYamlWriter.ResetFileIdCounter();
+            string prefabYaml = UnityYamlWriter.WritePrefab(ground);
+            await _fs.File.WriteAllTextAsync(prefabPath, prefabYaml, cancellationToken);
+            await _metaWriter.WriteDefaultMetaAsync(prefabPath, ct: cancellationToken);
+
+            string sceneRelative = "Assets/Scenes/" + sceneName + ".unity";
+            string prefabRelative = "Assets/Prefabs/Ground.prefab";
+            return JsonSerializer.Serialize(new { success = true, scene_path = sceneRelative, prefab_path = prefabRelative, message = (string?)null });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "CreateDefaultScene failed for {Path}", projectPath);
+            return JsonSerializer.Serialize(new { success = false, scene_path = (string?)null, prefab_path = (string?)null, message = ex.Message });
+        }
+    }
+
+    public async Task<string> ConfigureUrpAsync(string projectPath, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            string projectSettingsPath = _fs.Path.Combine(projectPath, "ProjectSettings", "ProjectSettings.asset");
+            string tagManagerPath = _fs.Path.Combine(projectPath, "ProjectSettings", "TagManager.asset");
+            string graphicsPath = _fs.Path.Combine(projectPath, "ProjectSettings", "GraphicsSettings.asset");
+
+            if (_fs.File.Exists(projectSettingsPath))
+            {
+                string content = await _fs.File.ReadAllTextAsync(projectSettingsPath, cancellationToken);
+                content = System.Text.RegularExpressions.Regex.Replace(content, @"m_ActiveColorSpace:\s*\d+", "m_ActiveColorSpace: 1");
+                await _fs.File.WriteAllTextAsync(projectSettingsPath, content, cancellationToken);
+            }
+
+            if (_fs.File.Exists(tagManagerPath))
+            {
+                string content = await _fs.File.ReadAllTextAsync(tagManagerPath, cancellationToken);
+                if (!content.Contains("Generated"))
+                    content = System.Text.RegularExpressions.Regex.Replace(content, @"(  m_Tags:\s*\n)", "$1  - Generated\n  - AutoSetup\n");
+                if (!content.Contains("CustomLayer1"))
+                    content = System.Text.RegularExpressions.Regex.Replace(content, @"(  m_Layers:\s*\n(?:  - .*\n){8})", "$1  - CustomLayer1\n  - CustomLayer2\n");
+                await _fs.File.WriteAllTextAsync(tagManagerPath, content, cancellationToken);
+            }
+
+            string? rpGuid = FindFirstRenderPipelineAssetGuid(projectPath);
+            if (!string.IsNullOrEmpty(rpGuid) && _fs.File.Exists(graphicsPath))
+            {
+                string content = await _fs.File.ReadAllTextAsync(graphicsPath, cancellationToken);
+                if (content.Contains("m_DefaultRenderPipeline"))
+                    content = System.Text.RegularExpressions.Regex.Replace(content, @"(m_DefaultRenderPipeline:\s*\{[^}]*})", $"m_DefaultRenderPipeline: {{fileID: 11400000, guid: {rpGuid}, type: 2}}");
+                else
+                    content = content.Replace("SerializedShader:\n", "SerializedShader:\nm_DefaultRenderPipeline: {fileID: 11400000, guid: " + rpGuid + ", type: 2}\n");
+                await _fs.File.WriteAllTextAsync(graphicsPath, content, cancellationToken);
+            }
+            else if (string.IsNullOrEmpty(rpGuid))
+            {
+                return JsonSerializer.Serialize(new { success = false, message = "No RenderPipelineAsset found in project. Add URP package and create or import a pipeline asset." });
+            }
+
+            return JsonSerializer.Serialize(new { success = true, message = (string?)null });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ConfigureUrp failed for {Path}", projectPath);
+            return JsonSerializer.Serialize(new { success = false, message = ex.Message });
+        }
+    }
+
+    private string? FindFirstRenderPipelineAssetGuid(string projectPath)
+    {
+        string assetsPath = _fs.Path.Combine(projectPath, "Assets");
+        string packagesPath = _fs.Path.Combine(projectPath, "Packages");
+        foreach (string root in new[] { assetsPath, packagesPath })
+        {
+            if (!_fs.Directory.Exists(root)) continue;
+            foreach (string file in _fs.Directory.EnumerateFiles(root, "*.asset", SearchOption.AllDirectories))
+            {
+                try
+                {
+                    string content = _fs.File.ReadAllText(file);
+                    if (content.IndexOf("RenderPipelineAsset", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        string metaPath = file + ".meta";
+                        if (_fs.File.Exists(metaPath))
+                        {
+                            string meta = _fs.File.ReadAllText(metaPath);
+                            var m = System.Text.RegularExpressions.Regex.Match(meta, @"guid:\s*([a-fA-F0-9]{32})");
+                            if (m.Success) return m.Groups[1].Value;
+                        }
+                    }
+                }
+                catch { /* skip */ }
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Validates import (asset refresh + script compilation). File-only stub: returns success with zero counts.
+    /// TODO: Run Unity in batch mode with an Editor script that performs AssetDatabase.Refresh and compilation,
+    /// writes mcp_validate_result.json, then read and return its contents.
+    /// </summary>
+    public Task<string> ValidateImportAsync(string projectPath, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(JsonSerializer.Serialize(new
+        {
+            success = true,
+            error_count = 0,
+            warning_count = 0,
+            errors = Array.Empty<string>(),
+            warnings = Array.Empty<string>(),
+            message = (string?)"Stub: file-only server cannot run Unity compilation. Implement batch-mode validation when Unity is available."
+        }));
     }
 
     // -----------------------------------------------------------------------

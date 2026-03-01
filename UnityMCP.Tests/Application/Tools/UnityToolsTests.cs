@@ -468,6 +468,56 @@ public class UnityToolsNewTests
         await _unityService.Received(1).AddPackagesAsync(@"C:\proj", json, Arg.Any<CancellationToken>());
         Assert.That(result, Does.Contain("manifest.json"));
     }
+
+    // ---- MCP-Unity contract tools ----
+
+    [Test]
+    public async Task InstallPackages_CallsServiceAndReturnsJson()
+    {
+        _unityService.InstallPackagesAsync(@"C:\proj", Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":true,\"installed\":[\"com.unity.urp\"],\"message\":null}"));
+
+        var result = await UnityTools.InstallPackages(_unityService, @"C:\proj", new[] { "com.unity.urp" });
+        await _unityService.Received(1).InstallPackagesAsync(@"C:\proj", Arg.Is<IReadOnlyList<string>>(l => l.Count == 1 && l[0] == "com.unity.urp"), Arg.Any<CancellationToken>());
+        Assert.That(result, Does.Contain("\"success\":true"));
+        Assert.That(result, Does.Contain("installed"));
+    }
+
+    [Test]
+    public async Task CreateDefaultScene_CallsServiceAndReturnsJson()
+    {
+        _unityService.CreateDefaultSceneAsync(@"C:\proj", "MainScene", Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":true,\"scene_path\":\"Assets/Scenes/MainScene.unity\",\"prefab_path\":\"Assets/Prefabs/Ground.prefab\"}"));
+
+        var result = await UnityTools.CreateDefaultScene(_unityService, @"C:\proj", "MainScene");
+        await _unityService.Received(1).CreateDefaultSceneAsync(@"C:\proj", "MainScene", Arg.Any<CancellationToken>());
+        Assert.That(result, Does.Contain("\"success\":true"));
+        Assert.That(result, Does.Contain("scene_path"));
+        Assert.That(result, Does.Contain("prefab_path"));
+    }
+
+    [Test]
+    public async Task ConfigureUrp_CallsServiceAndReturnsJson()
+    {
+        _unityService.ConfigureUrpAsync(@"C:\proj", Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":true,\"message\":null}"));
+
+        var result = await UnityTools.ConfigureUrp(_unityService, @"C:\proj");
+        await _unityService.Received(1).ConfigureUrpAsync(@"C:\proj", Arg.Any<CancellationToken>());
+        Assert.That(result, Does.Contain("\"success\":true"));
+    }
+
+    [Test]
+    public async Task ValidateImport_CallsServiceAndReturnsJson()
+    {
+        _unityService.ValidateImportAsync(@"C:\proj", Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":true,\"error_count\":0,\"warning_count\":0,\"errors\":[],\"warnings\":[]}"));
+
+        var result = await UnityTools.ValidateImport(_unityService, @"C:\proj");
+        await _unityService.Received(1).ValidateImportAsync(@"C:\proj", Arg.Any<CancellationToken>());
+        Assert.That(result, Does.Contain("\"success\":true"));
+        Assert.That(result, Does.Contain("error_count"));
+    }
 }
 
 // -----------------------------------------------------------------------
@@ -749,6 +799,53 @@ public class FileUnityServiceNewToolsTests
         string manifest = _mockFs.File.ReadAllText(_mockFs.Path.Combine(proj, "Packages", "manifest.json"));
         Assert.That(manifest, Does.Contain("com.unity.urp"));
         Assert.That(manifest, Does.Contain("com.unity.textmeshpro"));
+    }
+
+    [Test]
+    public async Task InstallPackagesAsync_AddsToManifest()
+    {
+        string proj = await _service.ScaffoldProjectAsync("InstallPkg", @"C:\output");
+        string json = await _service.InstallPackagesAsync(proj, new List<string> { "com.unity.render-pipelines.universal", "com.unity.textmeshpro" });
+
+        Assert.That(json, Does.Contain("\"success\":true"));
+        Assert.That(json, Does.Contain("installed"));
+        string manifest = _mockFs.File.ReadAllText(_mockFs.Path.Combine(proj, "Packages", "manifest.json"));
+        Assert.That(manifest, Does.Contain("com.unity.render-pipelines.universal"));
+        Assert.That(manifest, Does.Contain("com.unity.textmeshpro"));
+    }
+
+    [Test]
+    public async Task CreateDefaultSceneAsync_CreatesSceneAndPrefab()
+    {
+        string proj = await _service.ScaffoldProjectAsync("DefaultScene", @"C:\output");
+        string json = await _service.CreateDefaultSceneAsync(proj, "MainScene");
+
+        Assert.That(json, Does.Contain("\"success\":true"));
+        Assert.That(json, Does.Contain("Assets/Scenes/MainScene.unity"));
+        Assert.That(json, Does.Contain("Assets/Prefabs/Ground.prefab"));
+
+        string scenePath = _mockFs.Path.Combine(proj, "Assets", "Scenes", "MainScene.unity");
+        string prefabPath = _mockFs.Path.Combine(proj, "Assets", "Prefabs", "Ground.prefab");
+        Assert.That(_mockFs.File.Exists(scenePath), Is.True);
+        Assert.That(_mockFs.File.Exists(prefabPath), Is.True);
+        Assert.That(_mockFs.File.Exists(scenePath + ".meta"), Is.True);
+        Assert.That(_mockFs.File.Exists(prefabPath + ".meta"), Is.True);
+
+        string sceneContent = _mockFs.File.ReadAllText(scenePath);
+        Assert.That(sceneContent, Does.Contain("Main Camera"));
+        Assert.That(sceneContent, Does.Contain("Directional Light"));
+        Assert.That(sceneContent, Does.Contain("Ground"));
+    }
+
+    [Test]
+    public async Task ValidateImportAsync_ReturnsStubJson()
+    {
+        string proj = await _service.ScaffoldProjectAsync("ValidateStub", @"C:\output");
+        string json = await _service.ValidateImportAsync(proj);
+
+        Assert.That(json, Does.Contain("\"success\":true"));
+        Assert.That(json, Does.Contain("\"error_count\":0"));
+        Assert.That(json, Does.Contain("\"warning_count\":0"));
     }
 }
 
