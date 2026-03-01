@@ -101,7 +101,11 @@ See [Documentation~/API_REFERENCE.md](Documentation~/API_REFERENCE.md) for the f
 ---
 
 ## Version History
-
+- **1.4.0** (2026-03-01)
+  - 22 MCP tools (9 new: scaffold, folder, save script/text/texture/audio, validate C#, add packages, project info)
+  - Full .meta sidecar generation (MonoImporter, TextureImporter, AudioImporter, DefaultImporter, folder)
+  - Existing tools (create_script, create_asset, create_scene) now also generate .meta sidecars
+  - 55 tests (31 new integration tests)
 - **1.3.0** (2026-02-20)
   - 22 MCP tools (9 new: scaffold, folder, save script/text/texture/audio, validate C#, add packages, project info)
   - Full .meta sidecar generation (MonoImporter, TextureImporter, AudioImporter, DefaultImporter, folder)
