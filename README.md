@@ -31,11 +31,11 @@ Get up and running in minutes!
 ### Installation
 1. Clone this repo and build:
    ```sh
-   dotnet build UnityMCP.PureServer.sln
+   dotnet build UnityMcpServer.slnx
    ```
 2. Run the server:
    ```sh
-   dotnet run --project src/UnityMCP.Server
+   dotnet run --project UnityMcp.Server
    ```
 
 ### Test Connection

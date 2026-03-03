@@ -45,30 +45,26 @@ public class FileUnityService : IUnityService
         return Task.FromResult(isValid);
     }
 
-    public async Task CreateSceneAsync(string relativePath, CancellationToken cancellationToken = default)
+    public async Task CreateSceneAsync(string projectPath, string fileName, CancellationToken cancellationToken = default)
     {
-        EnsureDirectoryExists(relativePath);
-
-        // Create a default scene with camera and directional light
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        EnsureDirectoryExists(resolvedPath);
         var gameObjects = new List<GameObjectDef>
         {
             CreateDefaultCamera(),
             CreateDefaultLight(),
         };
-
         UnityYamlWriter.ResetFileIdCounter();
         string yaml = UnityYamlWriter.WriteScene(gameObjects);
-        await _fs.File.WriteAllTextAsync(relativePath, yaml, cancellationToken);
-        await _metaWriter.WriteDefaultMetaAsync(relativePath, ct: cancellationToken);
-        _logger.LogInformation("Scene created at {Path}", relativePath);
+        await _fs.File.WriteAllTextAsync(resolvedPath, yaml, cancellationToken);
+        await _metaWriter.WriteDefaultMetaAsync(resolvedPath, ct: cancellationToken);
+        _logger.LogInformation("Scene created at {Path}", resolvedPath);
     }
 
-    public async Task CreateScriptAsync(string relativePath, string scriptName, string? content = null, CancellationToken cancellationToken = default)
+    public async Task CreateScriptAsync(string projectPath, string fileName, string scriptName, string? content = null, CancellationToken cancellationToken = default)
     {
-        EnsureDirectoryExists(relativePath);
-
-        // If the AI provided full script content, use it directly.
-        // Otherwise fall back to a default MonoBehaviour template.
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        EnsureDirectoryExists(resolvedPath);
         string scriptContent = content ?? $@"using UnityEngine;
 
 public class {scriptName} : MonoBehaviour
@@ -83,35 +79,34 @@ public class {scriptName} : MonoBehaviour
         
     }}
 }}";
-        await _fs.File.WriteAllTextAsync(relativePath, scriptContent, cancellationToken);
-        await _metaWriter.WriteScriptMetaAsync(relativePath, ct: cancellationToken);
-        _logger.LogInformation("Script created at {Path} (with .meta)", relativePath);
+        await _fs.File.WriteAllTextAsync(resolvedPath, scriptContent, cancellationToken);
+        await _metaWriter.WriteScriptMetaAsync(resolvedPath, ct: cancellationToken);
+        _logger.LogInformation("Script created at {Path} (with .meta)", resolvedPath);
     }
 
-    public Task<IEnumerable<string>> ListAssetsAsync(string relativePath, string searchPattern = "*", CancellationToken cancellationToken = default)
+    public Task<IEnumerable<string>> ListAssetsAsync(string projectPath, string folderName, string searchPattern = "*", CancellationToken cancellationToken = default)
     {
-        if (!_fs.Directory.Exists(relativePath))
+        string resolvedPath = ResolvePath(projectPath, folderName);
+        if (!_fs.Directory.Exists(resolvedPath))
         {
-            _logger.LogWarning("Directory not found: {Path}", relativePath);
+            _logger.LogWarning("Directory not found: {Path}", resolvedPath);
             return Task.FromResult(Enumerable.Empty<string>());
         }
-
-        var files = _fs.Directory.EnumerateFiles(relativePath, searchPattern, SearchOption.AllDirectories)
+        var files = _fs.Directory.EnumerateFiles(resolvedPath, searchPattern, SearchOption.AllDirectories)
             .Select(f => f.Replace('\\', '/'))
             .Where(f => !f.EndsWith(".meta", StringComparison.OrdinalIgnoreCase))
             .OrderBy(f => f)
             .ToList();
-
         return Task.FromResult((IEnumerable<string>)files);
     }
 
-    public async Task BuildProjectAsync(string buildTarget, string outputPath, CancellationToken cancellationToken = default)
+    public async Task BuildProjectAsync(string projectPath, string buildTarget, string outputPath, CancellationToken cancellationToken = default)
     {
         string unityExe = FindUnityExecutable();
-
+        string resolvedProject = _fs.Path.GetFullPath(projectPath);
         string arguments = string.Join(" ",
             "-quit", "-batchmode", "-nographics",
-            $"-projectPath \"{_projectPath ?? "."}\"",
+            $"-projectPath \"{resolvedProject}\"",
             $"-buildTarget {buildTarget}",
             $"-buildOutput \"{outputPath}\""
         );
@@ -125,98 +120,96 @@ public class {scriptName} : MonoBehaviour
         _logger.LogInformation("Build completed for target {Target}", buildTarget);
     }
 
-    public async Task CreateAssetAsync(string relativePath, string content, CancellationToken cancellationToken = default)
+    public async Task CreateAssetAsync(string projectPath, string fileName, string content, CancellationToken cancellationToken = default)
     {
-        EnsureDirectoryExists(relativePath);
-        await _fs.File.WriteAllTextAsync(relativePath, content, cancellationToken);
-        await _metaWriter.WriteDefaultMetaAsync(relativePath, ct: cancellationToken);
-        _logger.LogInformation("Asset created at {Path} (with .meta)", relativePath);
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        EnsureDirectoryExists(resolvedPath);
+        await _fs.File.WriteAllTextAsync(resolvedPath, content, cancellationToken);
+        await _metaWriter.WriteDefaultMetaAsync(resolvedPath, ct: cancellationToken);
+        _logger.LogInformation("Asset created at {Path} (with .meta)", resolvedPath);
     }
 
-    public async Task CreateGameObjectAsync(string scenePath, string gameObjectName, CancellationToken cancellationToken = default)
+    public async Task CreateGameObjectAsync(string projectPath, string fileName, string gameObjectName, CancellationToken cancellationToken = default)
     {
-        // Append a simple GameObject to an existing scene file
+        string resolvedScenePath = ResolvePath(projectPath, fileName);
         var go = new GameObjectDef { Name = gameObjectName };
         string fragment = UnityYamlWriter.WriteGameObjectFragment(go);
-        await _fs.File.AppendAllTextAsync(scenePath, fragment, cancellationToken);
-        _logger.LogInformation("GameObject {Name} appended to {Scene}", gameObjectName, scenePath);
+        await _fs.File.AppendAllTextAsync(resolvedScenePath, fragment, cancellationToken);
+        _logger.LogInformation("GameObject {Name} appended to {Scene}", gameObjectName, resolvedScenePath);
     }
 
     // -----------------------------------------------------------------------
     // Enhanced AI-driven scene authoring tools
     // -----------------------------------------------------------------------
 
-    public async Task CreateDetailedSceneAsync(string relativePath, string sceneJson, CancellationToken cancellationToken = default)
+    public async Task CreateDetailedSceneAsync(string projectPath, string fileName, string sceneJson, CancellationToken cancellationToken = default)
     {
-        EnsureDirectoryExists(relativePath);
-
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        EnsureDirectoryExists(resolvedPath);
         var defs = DeserializeGameObjects(sceneJson);
         UnityYamlWriter.ResetFileIdCounter();
         string yaml = UnityYamlWriter.WriteScene(defs);
-        await _fs.File.WriteAllTextAsync(relativePath, yaml, cancellationToken);
-        _logger.LogInformation("Detailed scene created at {Path} with {Count} GameObjects", relativePath, defs.Count);
+        await _fs.File.WriteAllTextAsync(resolvedPath, yaml, cancellationToken);
+        _logger.LogInformation("Detailed scene created at {Path} with {Count} GameObjects", resolvedPath, defs.Count);
     }
 
-    public async Task AddGameObjectToSceneAsync(string scenePath, string gameObjectJson, CancellationToken cancellationToken = default)
+    public async Task AddGameObjectToSceneAsync(string projectPath, string fileName, string gameObjectJson, CancellationToken cancellationToken = default)
     {
-        if (!_fs.File.Exists(scenePath))
-            throw new FileNotFoundException($"Scene file not found: {scenePath}");
-
+        string resolvedScenePath = ResolvePath(projectPath, fileName);
+        if (!_fs.File.Exists(resolvedScenePath))
+            throw new FileNotFoundException($"Scene file not found: {resolvedScenePath}");
         var go = DeserializeGameObject(gameObjectJson);
         string fragment = UnityYamlWriter.WriteGameObjectFragment(go);
-        await _fs.File.AppendAllTextAsync(scenePath, fragment, cancellationToken);
-        _logger.LogInformation("GameObject {Name} added to scene {Scene}", go.Name, scenePath);
+        await _fs.File.AppendAllTextAsync(resolvedScenePath, fragment, cancellationToken);
+        _logger.LogInformation("GameObject {Name} added to scene {Scene}", go.Name, resolvedScenePath);
     }
 
-    public async Task CreateMaterialAsync(string relativePath, string materialJson, CancellationToken cancellationToken = default)
+    public async Task CreateMaterialAsync(string projectPath, string fileName, string materialJson, CancellationToken cancellationToken = default)
     {
-        EnsureDirectoryExists(relativePath);
-
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        EnsureDirectoryExists(resolvedPath);
         var matDef = JsonSerializer.Deserialize<MaterialDef>(materialJson, JsonOpts)
             ?? new MaterialDef();
-
         UnityYamlWriter.ResetFileIdCounter();
         string yaml = UnityYamlWriter.WriteMaterial(matDef);
-        await _fs.File.WriteAllTextAsync(relativePath, yaml, cancellationToken);
-        _logger.LogInformation("Material created at {Path}", relativePath);
+        await _fs.File.WriteAllTextAsync(resolvedPath, yaml, cancellationToken);
+        _logger.LogInformation("Material created at {Path}", resolvedPath);
     }
 
-    public async Task CreatePrefabAsync(string relativePath, string prefabJson, CancellationToken cancellationToken = default)
+    public async Task CreatePrefabAsync(string projectPath, string fileName, string prefabJson, CancellationToken cancellationToken = default)
     {
-        EnsureDirectoryExists(relativePath);
-
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        EnsureDirectoryExists(resolvedPath);
         var go = DeserializeGameObject(prefabJson);
         UnityYamlWriter.ResetFileIdCounter();
         string yaml = UnityYamlWriter.WritePrefab(go);
-        await _fs.File.WriteAllTextAsync(relativePath, yaml, cancellationToken);
-        _logger.LogInformation("Prefab created at {Path}", relativePath);
+        await _fs.File.WriteAllTextAsync(resolvedPath, yaml, cancellationToken);
+        _logger.LogInformation("Prefab created at {Path}", resolvedPath);
     }
 
-    public Task<string> ReadAssetAsync(string relativePath, CancellationToken cancellationToken = default)
+    public Task<string> ReadAssetAsync(string projectPath, string fileName, CancellationToken cancellationToken = default)
     {
-        if (!_fs.File.Exists(relativePath))
-            throw new FileNotFoundException($"File not found: {relativePath}");
-
-        return _fs.File.ReadAllTextAsync(relativePath, cancellationToken);
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        if (!_fs.File.Exists(resolvedPath))
+            throw new FileNotFoundException($"File not found: {resolvedPath}");
+        return _fs.File.ReadAllTextAsync(resolvedPath, cancellationToken);
     }
 
-    public Task DeleteAssetAsync(string relativePath, CancellationToken cancellationToken = default)
+    public Task DeleteAssetAsync(string projectPath, string fileName, CancellationToken cancellationToken = default)
     {
-        if (_fs.File.Exists(relativePath))
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        if (_fs.File.Exists(resolvedPath))
         {
-            _fs.File.Delete(relativePath);
-            _logger.LogInformation("Deleted asset at {Path}", relativePath);
-
-            // Also delete .meta sidecar if it exists
-            string metaPath = relativePath + ".meta";
+            _fs.File.Delete(resolvedPath);
+            _logger.LogInformation("Deleted asset at {Path}", resolvedPath);
+            string metaPath = resolvedPath + ".meta";
             if (_fs.File.Exists(metaPath))
                 _fs.File.Delete(metaPath);
         }
         else
         {
-            _logger.LogWarning("File not found for deletion: {Path}", relativePath);
+            _logger.LogWarning("File not found for deletion: {Path}", resolvedPath);
         }
-
         return Task.CompletedTask;
     }
 
@@ -459,7 +452,9 @@ public class {scriptName} : MonoBehaviour
         foreach (var folder in folders)
         {
             _fs.Directory.CreateDirectory(folder);
-            await _metaWriter.WriteFolderMetaAsync(folder, ct: cancellationToken);
+            string folderMeta = folder + ".meta";
+            if (!_fs.File.Exists(folderMeta))
+                await _metaWriter.WriteFolderMetaAsync(folder, ct: cancellationToken);
         }
 
         // ProjectVersion.txt
@@ -520,11 +515,12 @@ public class {scriptName} : MonoBehaviour
         return Task.FromResult(info);
     }
 
-    public async Task CreateFolderAsync(string folderPath, CancellationToken cancellationToken = default)
+    public async Task CreateFolderAsync(string projectPath, string folderName, CancellationToken cancellationToken = default)
     {
-        _fs.Directory.CreateDirectory(folderPath);
-        await _metaWriter.WriteFolderMetaAsync(folderPath, ct: cancellationToken);
-        _logger.LogInformation("Folder created at {Path} (with .meta)", folderPath);
+        string resolvedPath = ResolvePath(projectPath, folderName);
+        _fs.Directory.CreateDirectory(resolvedPath);
+        await _metaWriter.WriteFolderMetaAsync(resolvedPath, ct: cancellationToken);
+        _logger.LogInformation("Folder created at {Path} (with .meta)", resolvedPath);
     }
 
     // -----------------------------------------------------------------------
@@ -533,9 +529,9 @@ public class {scriptName} : MonoBehaviour
 
     public async Task SaveScriptAsync(string projectPath, string fileName, string content, CancellationToken cancellationToken = default)
     {
-        string dir = _fs.Path.Combine(projectPath, "Assets", "Scripts");
+        string filePath = ResolveAssetPath(projectPath, fileName, "Scripts");
+        string dir = _fs.Path.GetDirectoryName(filePath)!;
         _fs.Directory.CreateDirectory(dir);
-        string filePath = _fs.Path.Combine(dir, fileName);
         await _fs.File.WriteAllTextAsync(filePath, content, cancellationToken);
         await _metaWriter.WriteScriptMetaAsync(filePath, ct: cancellationToken);
         _logger.LogInformation("Script saved at {Path} (with MonoImporter .meta)", filePath);
@@ -543,9 +539,9 @@ public class {scriptName} : MonoBehaviour
 
     public async Task SaveTextAssetAsync(string projectPath, string fileName, string content, CancellationToken cancellationToken = default)
     {
-        string dir = _fs.Path.Combine(projectPath, "Assets", "Text");
+        string filePath = ResolveAssetPath(projectPath, fileName, "Text");
+        string dir = _fs.Path.GetDirectoryName(filePath)!;
         _fs.Directory.CreateDirectory(dir);
-        string filePath = _fs.Path.Combine(dir, fileName);
         await _fs.File.WriteAllTextAsync(filePath, content, cancellationToken);
         await _metaWriter.WriteDefaultMetaAsync(filePath, ct: cancellationToken);
         _logger.LogInformation("Text asset saved at {Path} (with .meta)", filePath);
@@ -553,9 +549,9 @@ public class {scriptName} : MonoBehaviour
 
     public async Task SaveTextureAsync(string projectPath, string fileName, string base64Data, CancellationToken cancellationToken = default)
     {
-        string dir = _fs.Path.Combine(projectPath, "Assets", "Textures");
+        string filePath = ResolveAssetPath(projectPath, fileName, "Textures");
+        string dir = _fs.Path.GetDirectoryName(filePath)!;
         _fs.Directory.CreateDirectory(dir);
-        string filePath = _fs.Path.Combine(dir, fileName);
         byte[] data = Convert.FromBase64String(base64Data);
         await _fs.File.WriteAllBytesAsync(filePath, data, cancellationToken);
         await _metaWriter.WriteTextureMetaAsync(filePath, ct: cancellationToken);
@@ -564,9 +560,9 @@ public class {scriptName} : MonoBehaviour
 
     public async Task SaveAudioAsync(string projectPath, string fileName, string base64Data, CancellationToken cancellationToken = default)
     {
-        string dir = _fs.Path.Combine(projectPath, "Assets", "Audio");
+        string filePath = ResolveAssetPath(projectPath, fileName, "Audio");
+        string dir = _fs.Path.GetDirectoryName(filePath)!;
         _fs.Directory.CreateDirectory(dir);
-        string filePath = _fs.Path.Combine(dir, fileName);
         byte[] data = Convert.FromBase64String(base64Data);
         await _fs.File.WriteAllBytesAsync(filePath, data, cancellationToken);
         await _metaWriter.WriteAudioMetaAsync(filePath, ct: cancellationToken);
@@ -850,6 +846,67 @@ public class {scriptName} : MonoBehaviour
             warnings = Array.Empty<string>(),
             message = (string?)"Stub: file-only server cannot run Unity compilation. Implement batch-mode validation when Unity is available."
         }));
+    }
+
+    // -----------------------------------------------------------------------
+    // Path resolution (projectPath = base; fileName/folderName may include path; no duplicate segments)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Resolves path under project. Validates both projectPath and nameOrPath; builds final path
+    /// without duplicating segments (e.g. if projectPath ends with Assets and nameOrPath starts with Assets/Scripts, use as-is).
+    /// </summary>
+    private string ResolvePath(string projectPath, string nameOrPath)
+    {
+        if (string.IsNullOrWhiteSpace(nameOrPath))
+            throw new ArgumentException("Path or file name cannot be empty.", nameof(nameOrPath));
+        nameOrPath = nameOrPath.Trim().Replace('/', _fs.Path.DirectorySeparatorChar);
+        string projectRoot = _fs.Path.GetFullPath(projectPath ?? "").TrimEnd(_fs.Path.DirectorySeparatorChar, '/');
+
+        if (!nameOrPath.Contains(_fs.Path.DirectorySeparatorChar))
+            return _fs.Path.GetFullPath(_fs.Path.Combine(projectRoot, nameOrPath));
+
+        // Strip leading segments from nameOrPath that duplicate trailing segments of projectRoot
+        string[] projectSegments = projectRoot.Split(new[] { _fs.Path.DirectorySeparatorChar, '/' }, StringSplitOptions.RemoveEmptyEntries);
+        string[] nameSegments = nameOrPath.Split(new[] { _fs.Path.DirectorySeparatorChar, '/' }, StringSplitOptions.RemoveEmptyEntries);
+        int strip = 0;
+        int projIdx = projectSegments.Length - 1;
+        while (projIdx >= 0 && strip < nameSegments.Length &&
+               string.Equals(projectSegments[projIdx], nameSegments[strip], StringComparison.OrdinalIgnoreCase))
+        {
+            strip++;
+            projIdx--;
+        }
+        // Never strip all segments: we must keep at least one (file/folder name) so the result is a valid path
+        if (strip >= nameSegments.Length)
+            strip = 0;
+        string combined = _fs.Path.Combine(projectRoot, string.Join(_fs.Path.DirectorySeparatorChar.ToString(), nameSegments.Skip(strip)));
+        return _fs.Path.GetFullPath(combined);
+    }
+
+    /// <summary>
+    /// For Save*: fileName can be a bare name (e.g. Player.cs) or path. If bare name, use projectPath/Assets/defaultSubfolder/fileName;
+    /// if path already has segments, combine with projectPath without duplicating (Assets/Scripts appear only once).
+    /// </summary>
+    private string ResolveAssetPath(string projectPath, string fileName, string defaultSubfolder)
+    {
+        if (string.IsNullOrWhiteSpace(fileName)) fileName = "unnamed";
+        fileName = fileName.Trim().Replace('/', _fs.Path.DirectorySeparatorChar);
+        string projectRoot = _fs.Path.GetFullPath(projectPath ?? "").TrimEnd(_fs.Path.DirectorySeparatorChar, '/');
+
+        bool hasDirSep = fileName.Contains(_fs.Path.DirectorySeparatorChar);
+        if (hasDirSep)
+            return ResolvePath(projectPath ?? "", fileName);
+
+        // Plain filename: projectRoot/Assets/defaultSubfolder/fileName, but don't duplicate if projectRoot already ends with Assets or Assets/defaultSubfolder
+        string defaultPrefix = _fs.Path.Combine("Assets", defaultSubfolder);
+        string projectRootNorm = projectRoot.Replace('/', _fs.Path.DirectorySeparatorChar);
+        string defaultPrefixNorm = defaultPrefix.Replace('/', _fs.Path.DirectorySeparatorChar);
+        if (projectRootNorm.EndsWith(defaultPrefixNorm, StringComparison.OrdinalIgnoreCase))
+            return _fs.Path.GetFullPath(_fs.Path.Combine(projectRoot, fileName));
+        if (projectRootNorm.EndsWith("Assets", StringComparison.OrdinalIgnoreCase))
+            return _fs.Path.GetFullPath(_fs.Path.Combine(projectRoot, defaultSubfolder, fileName));
+        return _fs.Path.GetFullPath(_fs.Path.Combine(projectRoot, "Assets", defaultSubfolder, fileName));
     }
 
     // -----------------------------------------------------------------------

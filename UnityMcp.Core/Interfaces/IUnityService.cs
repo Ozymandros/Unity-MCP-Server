@@ -16,69 +16,68 @@ public interface IUnityService
     Task<bool> IsValidProjectAsync(string projectPath, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Creates a minimal Unity Scene file (.unity) at the specified path.
+    /// Creates a minimal Unity Scene file (.unity). fileName can be a path (e.g. Assets/Scenes/Main.unity) or name; no duplicate segments.
     /// </summary>
-    Task CreateSceneAsync(string relativePath, CancellationToken cancellationToken = default);
+    Task CreateSceneAsync(string projectPath, string fileName, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Creates a C# script. If content is provided (AI-generated), writes it directly.
-    /// Otherwise creates a default MonoBehaviour template.
+    /// Creates a C# script. fileName can be path or name. If content is provided, writes it; otherwise default MonoBehaviour template.
     /// </summary>
-    Task CreateScriptAsync(string relativePath, string scriptName, string? content = null, CancellationToken cancellationToken = default);
+    Task CreateScriptAsync(string projectPath, string fileName, string scriptName, string? content = null, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Lists files in a directory, optionally filtering by pattern.
+    /// Lists files in a directory. folderName can be path (e.g. Assets/Scripts) or name; no duplicate segments.
     /// </summary>
-    Task<IEnumerable<string>> ListAssetsAsync(string relativePath, string searchPattern = "*", CancellationToken cancellationToken = default);
+    Task<IEnumerable<string>> ListAssetsAsync(string projectPath, string folderName, string searchPattern = "*", CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Builds the project using Unity CLI in batch mode.
     /// </summary>
-    Task BuildProjectAsync(string buildTarget, string outputPath, CancellationToken cancellationToken = default);
+    Task BuildProjectAsync(string projectPath, string buildTarget, string outputPath, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Creates a generic text file at the specified path.
+    /// Creates a generic text file. fileName can be path or name; no duplicate segments.
     /// </summary>
-    Task CreateAssetAsync(string relativePath, string content, CancellationToken cancellationToken = default);
+    Task CreateAssetAsync(string projectPath, string fileName, string content, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Creates a new GameObject in an existing scene file (appends YAML).
+    /// Creates a new GameObject in an existing scene file (appends YAML). fileName = scene file path or name.
     /// </summary>
-    Task CreateGameObjectAsync(string scenePath, string gameObjectName, CancellationToken cancellationToken = default);
+    Task CreateGameObjectAsync(string projectPath, string fileName, string gameObjectName, CancellationToken cancellationToken = default);
 
     // -----------------------------------------------------------------------
     // Enhanced tools for AI-driven scene authoring
     // -----------------------------------------------------------------------
 
     /// <summary>
-    /// Creates a detailed scene with a list of GameObjects (camera, lights, geometry, etc.).
+    /// Creates a detailed scene with a list of GameObjects. fileName can be path or name; no duplicate segments.
     /// </summary>
-    Task CreateDetailedSceneAsync(string relativePath, string sceneJson, CancellationToken cancellationToken = default);
+    Task CreateDetailedSceneAsync(string projectPath, string fileName, string sceneJson, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Appends a GameObject (with components and transform) to an existing scene.
+    /// Appends a GameObject to an existing scene. fileName = scene file path or name.
     /// </summary>
-    Task AddGameObjectToSceneAsync(string scenePath, string gameObjectJson, CancellationToken cancellationToken = default);
+    Task AddGameObjectToSceneAsync(string projectPath, string fileName, string gameObjectJson, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Creates a Unity material file (.mat).
+    /// Creates a Unity material file (.mat). fileName can be path or name; no duplicate segments.
     /// </summary>
-    Task CreateMaterialAsync(string relativePath, string materialJson, CancellationToken cancellationToken = default);
+    Task CreateMaterialAsync(string projectPath, string fileName, string materialJson, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Creates a Unity prefab file (.prefab).
+    /// Creates a Unity prefab file (.prefab). fileName can be path or name; no duplicate segments.
     /// </summary>
-    Task CreatePrefabAsync(string relativePath, string prefabJson, CancellationToken cancellationToken = default);
+    Task CreatePrefabAsync(string projectPath, string fileName, string prefabJson, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Reads the text content of a file.
+    /// Reads the text content of a file. fileName can be path or name.
     /// </summary>
-    Task<string> ReadAssetAsync(string relativePath, CancellationToken cancellationToken = default);
+    Task<string> ReadAssetAsync(string projectPath, string fileName, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Deletes a file from the project.
+    /// Deletes a file from the project. fileName can be path or name.
     /// </summary>
-    Task DeleteAssetAsync(string relativePath, CancellationToken cancellationToken = default);
+    Task DeleteAssetAsync(string projectPath, string fileName, CancellationToken cancellationToken = default);
 
     // -----------------------------------------------------------------------
     // Project scaffolding & management
@@ -97,31 +96,31 @@ public interface IUnityService
     Task<string> GetProjectInfoAsync(string projectPath, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Creates a folder with its .meta sidecar.
+    /// Creates a folder with its .meta sidecar. folderName can be path or name; no duplicate segments.
     /// </summary>
-    Task CreateFolderAsync(string folderPath, CancellationToken cancellationToken = default);
+    Task CreateFolderAsync(string projectPath, string folderName, CancellationToken cancellationToken = default);
 
     // -----------------------------------------------------------------------
     // Typed asset saving (with correct .meta sidecars)
     // -----------------------------------------------------------------------
 
     /// <summary>
-    /// Saves a C# script with MonoImporter .meta sidecar.
+    /// Saves a C# script with MonoImporter .meta. fileName = filename or path; no duplicate segments (e.g. Assets/Scripts once).
     /// </summary>
     Task SaveScriptAsync(string projectPath, string fileName, string content, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Saves a text asset with DefaultImporter .meta sidecar.
+    /// Saves a text asset with DefaultImporter .meta. fileName = filename or path; no duplicate segments.
     /// </summary>
     Task SaveTextAssetAsync(string projectPath, string fileName, string content, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Saves a texture (base64 PNG) with TextureImporter .meta sidecar.
+    /// Saves a texture (base64 PNG) with TextureImporter .meta. fileName = filename or path; no duplicate segments.
     /// </summary>
     Task SaveTextureAsync(string projectPath, string fileName, string base64Data, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Saves an audio clip (base64 MP3/WAV) with AudioImporter .meta sidecar.
+    /// Saves an audio clip (base64 MP3/WAV) with AudioImporter .meta. fileName = filename or path; no duplicate segments.
     /// </summary>
     Task SaveAudioAsync(string projectPath, string fileName, string base64Data, CancellationToken cancellationToken = default);
 

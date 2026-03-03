@@ -44,8 +44,8 @@ public class UnityToolsTests
     [Test]
     public async Task CreateScene_ValidPath_CallsServiceAndReturnsMessage()
     {
-        var result = await UnityTools.CreateScene(_unityService, "Scenes/TestScene.unity");
-        await _unityService.Received(1).CreateSceneAsync("Scenes/TestScene.unity", Arg.Any<CancellationToken>());
+        var result = await UnityTools.CreateScene(_unityService, @"C:\proj", "Scenes/TestScene.unity");
+        await _unityService.Received(1).CreateSceneAsync(@"C:\proj", "Scenes/TestScene.unity", Arg.Any<CancellationToken>());
         Assert.That(result, Does.Contain("Scenes/TestScene.unity"));
     }
 
@@ -56,8 +56,8 @@ public class UnityToolsTests
     [Test]
     public async Task CreateScript_ValidParams_CallsServiceAndReturnsMessage()
     {
-        var result = await UnityTools.CreateScript(_unityService, "Scripts/Player.cs", "Player");
-        await _unityService.Received(1).CreateScriptAsync("Scripts/Player.cs", "Player", null, Arg.Any<CancellationToken>());
+        var result = await UnityTools.CreateScript(_unityService, @"C:\proj", "Scripts/Player.cs", "Player");
+        await _unityService.Received(1).CreateScriptAsync(@"C:\proj", "Scripts/Player.cs", "Player", null, Arg.Any<CancellationToken>());
         Assert.That(result, Does.Contain("Player"));
     }
 
@@ -65,8 +65,8 @@ public class UnityToolsTests
     public async Task CreateScript_WithAIContent_PassesContentToService()
     {
         string aiCode = "using UnityEngine;\npublic class Player : MonoBehaviour { void Update() { } }";
-        var result = await UnityTools.CreateScript(_unityService, "Scripts/Player.cs", "Player", aiCode);
-        await _unityService.Received(1).CreateScriptAsync("Scripts/Player.cs", "Player", aiCode, Arg.Any<CancellationToken>());
+        var result = await UnityTools.CreateScript(_unityService, @"C:\proj", "Scripts/Player.cs", "Player", aiCode);
+        await _unityService.Received(1).CreateScriptAsync(@"C:\proj", "Scripts/Player.cs", "Player", aiCode, Arg.Any<CancellationToken>());
         Assert.That(result, Does.Contain("Player"));
     }
 
@@ -78,19 +78,19 @@ public class UnityToolsTests
     public async Task ListAssets_ValidRequest_ReturnsAssetsList()
     {
         var expected = new List<string> { "Assets/Textures/Player.png", "Assets/Textures/Ground.png" };
-        _unityService.ListAssetsAsync("Assets/Textures", "*.png", Arg.Any<CancellationToken>())
+        _unityService.ListAssetsAsync(@"C:\proj", "Assets/Textures", "*.png", Arg.Any<CancellationToken>())
             .Returns(Task.FromResult((IEnumerable<string>)expected));
 
-        var result = await UnityTools.ListAssets(_unityService, "Assets/Textures", "*.png");
+        var result = await UnityTools.ListAssets(_unityService, @"C:\proj", "Assets/Textures", "*.png");
         Assert.That(result.Count(), Is.EqualTo(2));
     }
 
     [Test]
     public async Task ListAssets_NoMatches_ReturnsEmptyList()
     {
-        _unityService.ListAssetsAsync("Assets/Audio", "*.wav", Arg.Any<CancellationToken>())
+        _unityService.ListAssetsAsync(@"C:\proj", "Assets/Audio", "*.wav", Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(Enumerable.Empty<string>()));
-        var result = await UnityTools.ListAssets(_unityService, "Assets/Audio", "*.wav");
+        var result = await UnityTools.ListAssets(_unityService, @"C:\proj", "Assets/Audio", "*.wav");
         Assert.That(result, Is.Empty);
     }
 
@@ -101,8 +101,8 @@ public class UnityToolsTests
     [Test]
     public async Task BuildProject_CallsServiceAndReturnsMessage()
     {
-        var result = await UnityTools.BuildProject(_unityService, "Win64", "C:/Builds/Output");
-        await _unityService.Received(1).BuildProjectAsync("Win64", "C:/Builds/Output", Arg.Any<CancellationToken>());
+        var result = await UnityTools.BuildProject(_unityService, @"C:\proj", "Win64", "C:/Builds/Output");
+        await _unityService.Received(1).BuildProjectAsync(@"C:\proj", "Win64", "C:/Builds/Output", Arg.Any<CancellationToken>());
         Assert.That(result, Does.Contain("Win64"));
     }
 
@@ -113,16 +113,16 @@ public class UnityToolsTests
     [Test]
     public async Task CreateAsset_ValidParams_CallsServiceAndReturnsMessage()
     {
-        var result = await UnityTools.CreateAsset(_unityService, "Materials/Test.mat", "content");
-        await _unityService.Received(1).CreateAssetAsync("Materials/Test.mat", "content", Arg.Any<CancellationToken>());
+        var result = await UnityTools.CreateAsset(_unityService, @"C:\proj", "Materials/Test.mat", "content");
+        await _unityService.Received(1).CreateAssetAsync(@"C:\proj", "Materials/Test.mat", "content", Arg.Any<CancellationToken>());
         Assert.That(result, Does.Contain("Materials/Test.mat"));
     }
 
     [Test]
     public async Task CreateAsset_EmptyContent_DefaultsToEmptyString()
     {
-        var result = await UnityTools.CreateAsset(_unityService, "Materials/Empty.mat");
-        await _unityService.Received(1).CreateAssetAsync("Materials/Empty.mat", "", Arg.Any<CancellationToken>());
+        var result = await UnityTools.CreateAsset(_unityService, @"C:\proj", "Materials/Empty.mat");
+        await _unityService.Received(1).CreateAssetAsync(@"C:\proj", "Materials/Empty.mat", "", Arg.Any<CancellationToken>());
         Assert.That(result, Does.Contain("Materials/Empty.mat"));
     }
 
@@ -133,8 +133,8 @@ public class UnityToolsTests
     [Test]
     public async Task CreateGameObject_CallsServiceAndReturnsMessage()
     {
-        var result = await UnityTools.CreateGameObject(_unityService, "Scenes/Main.unity", "Cube");
-        await _unityService.Received(1).CreateGameObjectAsync("Scenes/Main.unity", "Cube", Arg.Any<CancellationToken>());
+        var result = await UnityTools.CreateGameObject(_unityService, @"C:\proj", "Scenes/Main.unity", "Cube");
+        await _unityService.Received(1).CreateGameObjectAsync(@"C:\proj", "Scenes/Main.unity", "Cube", Arg.Any<CancellationToken>());
         Assert.That(result, Does.Contain("Cube"));
     }
 
@@ -146,8 +146,8 @@ public class UnityToolsTests
     public async Task CreateDetailedScene_ValidJson_CallsServiceAndReturnsMessage()
     {
         string json = """[{"name":"Camera","tag":"MainCamera","position":{"x":0,"y":1,"z":-10},"components":[{"type":"Camera"}]}]""";
-        var result = await UnityTools.CreateDetailedScene(_unityService, "Assets/Scenes/Level1.unity", json);
-        await _unityService.Received(1).CreateDetailedSceneAsync("Assets/Scenes/Level1.unity", json, Arg.Any<CancellationToken>());
+        var result = await UnityTools.CreateDetailedScene(_unityService, @"C:\proj", "Assets/Scenes/Level1.unity", json);
+        await _unityService.Received(1).CreateDetailedSceneAsync(@"C:\proj", "Assets/Scenes/Level1.unity", json, Arg.Any<CancellationToken>());
         Assert.That(result, Does.Contain("Level1.unity"));
     }
 
@@ -159,8 +159,8 @@ public class UnityToolsTests
     public async Task AddGameObject_ValidJson_CallsServiceAndReturnsMessage()
     {
         string json = """{"name":"Sphere","position":{"x":3,"y":0,"z":0},"components":[{"type":"MeshFilter","mesh":"Sphere"},{"type":"MeshRenderer"}]}""";
-        var result = await UnityTools.AddGameObject(_unityService, "Scenes/Main.unity", json);
-        await _unityService.Received(1).AddGameObjectToSceneAsync("Scenes/Main.unity", json, Arg.Any<CancellationToken>());
+        var result = await UnityTools.AddGameObject(_unityService, @"C:\proj", "Scenes/Main.unity", json);
+        await _unityService.Received(1).AddGameObjectToSceneAsync(@"C:\proj", "Scenes/Main.unity", json, Arg.Any<CancellationToken>());
         Assert.That(result, Does.Contain("Scenes/Main.unity"));
     }
 
@@ -172,8 +172,8 @@ public class UnityToolsTests
     public async Task CreateMaterial_ValidJson_CallsServiceAndReturnsMessage()
     {
         string json = """{"name":"RedMetal","color":{"r":1,"g":0,"b":0,"a":1},"metallic":0.8,"smoothness":0.6}""";
-        var result = await UnityTools.CreateMaterial(_unityService, "Assets/Materials/RedMetal.mat", json);
-        await _unityService.Received(1).CreateMaterialAsync("Assets/Materials/RedMetal.mat", json, Arg.Any<CancellationToken>());
+        var result = await UnityTools.CreateMaterial(_unityService, @"C:\proj", "Assets/Materials/RedMetal.mat", json);
+        await _unityService.Received(1).CreateMaterialAsync(@"C:\proj", "Assets/Materials/RedMetal.mat", json, Arg.Any<CancellationToken>());
         Assert.That(result, Does.Contain("RedMetal.mat"));
     }
 
@@ -185,8 +185,8 @@ public class UnityToolsTests
     public async Task CreatePrefab_ValidJson_CallsServiceAndReturnsMessage()
     {
         string json = """{"name":"Enemy","components":[{"type":"MeshFilter","mesh":"Capsule"},{"type":"Rigidbody","mass":2}]}""";
-        var result = await UnityTools.CreatePrefab(_unityService, "Assets/Prefabs/Enemy.prefab", json);
-        await _unityService.Received(1).CreatePrefabAsync("Assets/Prefabs/Enemy.prefab", json, Arg.Any<CancellationToken>());
+        var result = await UnityTools.CreatePrefab(_unityService, @"C:\proj", "Assets/Prefabs/Enemy.prefab", json);
+        await _unityService.Received(1).CreatePrefabAsync(@"C:\proj", "Assets/Prefabs/Enemy.prefab", json, Arg.Any<CancellationToken>());
         Assert.That(result, Does.Contain("Enemy.prefab"));
     }
 
@@ -197,10 +197,10 @@ public class UnityToolsTests
     [Test]
     public async Task ReadAsset_ReturnsFileContent()
     {
-        _unityService.ReadAssetAsync("Assets/Scripts/Player.cs", Arg.Any<CancellationToken>())
+        _unityService.ReadAssetAsync(@"C:\proj", "Assets/Scripts/Player.cs", Arg.Any<CancellationToken>())
             .Returns("using UnityEngine; class Player {}");
 
-        var result = await UnityTools.ReadAsset(_unityService, "Assets/Scripts/Player.cs");
+        var result = await UnityTools.ReadAsset(_unityService, @"C:\proj", "Assets/Scripts/Player.cs");
         Assert.That(result, Does.Contain("using UnityEngine"));
     }
 
@@ -211,8 +211,8 @@ public class UnityToolsTests
     [Test]
     public async Task DeleteAsset_CallsServiceAndReturnsMessage()
     {
-        var result = await UnityTools.DeleteAsset(_unityService, "Assets/Old/Legacy.cs");
-        await _unityService.Received(1).DeleteAssetAsync("Assets/Old/Legacy.cs", Arg.Any<CancellationToken>());
+        var result = await UnityTools.DeleteAsset(_unityService, @"C:\proj", "Assets/Old/Legacy.cs");
+        await _unityService.Received(1).DeleteAssetAsync(@"C:\proj", "Assets/Old/Legacy.cs", Arg.Any<CancellationToken>());
         Assert.That(result, Does.Contain("Deleted"));
     }
 }
@@ -400,8 +400,8 @@ public class UnityToolsNewTests
     [Test]
     public async Task CreateFolder_CallsServiceAndReturnsMessage()
     {
-        var result = await UnityTools.CreateFolder(_unityService, "Assets/Custom");
-        await _unityService.Received(1).CreateFolderAsync("Assets/Custom", Arg.Any<CancellationToken>());
+        var result = await UnityTools.CreateFolder(_unityService, @"C:\proj", "Assets/Custom");
+        await _unityService.Received(1).CreateFolderAsync(@"C:\proj", "Assets/Custom", Arg.Any<CancellationToken>());
         Assert.That(result, Does.Contain("Assets/Custom"));
         Assert.That(result, Does.Contain(".meta"));
     }
@@ -413,7 +413,7 @@ public class UnityToolsNewTests
     {
         var result = await UnityTools.SaveScript(_unityService, @"C:\proj", "Player.cs", "class Player {}");
         await _unityService.Received(1).SaveScriptAsync(@"C:\proj", "Player.cs", "class Player {}", Arg.Any<CancellationToken>());
-        Assert.That(result, Does.Contain("Player.cs"));
+        Assert.That(result, Does.Contain("saved"));
     }
 
     // ---- SaveText ----
@@ -423,7 +423,7 @@ public class UnityToolsNewTests
     {
         var result = await UnityTools.SaveText(_unityService, @"C:\proj", "dialogue.txt", "Hello world");
         await _unityService.Received(1).SaveTextAssetAsync(@"C:\proj", "dialogue.txt", "Hello world", Arg.Any<CancellationToken>());
-        Assert.That(result, Does.Contain("dialogue.txt"));
+        Assert.That(result, Does.Contain("saved"));
     }
 
     // ---- SaveTexture ----
@@ -433,7 +433,7 @@ public class UnityToolsNewTests
     {
         var result = await UnityTools.SaveTexture(_unityService, @"C:\proj", "sprite.png", "AAAA");
         await _unityService.Received(1).SaveTextureAsync(@"C:\proj", "sprite.png", "AAAA", Arg.Any<CancellationToken>());
-        Assert.That(result, Does.Contain("sprite.png"));
+        Assert.That(result, Does.Contain("saved"));
     }
 
     // ---- SaveAudio ----
@@ -443,7 +443,7 @@ public class UnityToolsNewTests
     {
         var result = await UnityTools.SaveAudio(_unityService, @"C:\proj", "sfx.mp3", "BBBB");
         await _unityService.Received(1).SaveAudioAsync(@"C:\proj", "sfx.mp3", "BBBB", Arg.Any<CancellationToken>());
-        Assert.That(result, Does.Contain("sfx.mp3"));
+        Assert.That(result, Does.Contain("saved"));
     }
 
     // ---- ValidateCSharp ----
@@ -681,9 +681,10 @@ public class FileUnityServiceNewToolsTests
     [Test]
     public async Task CreateFolder_CreatesWithMeta()
     {
-        string folder = @"C:\output\Assets\Custom";
-        await _service.CreateFolderAsync(folder);
+        string projectPath = await _service.ScaffoldProjectAsync("FolderTest", @"C:\output");
+        await _service.CreateFolderAsync(projectPath, "Assets/Custom");
 
+        string folder = _mockFs.Path.Combine(projectPath, "Assets", "Custom");
         Assert.That(_mockFs.Directory.Exists(folder), Is.True);
         Assert.That(_mockFs.File.Exists(folder + ".meta"), Is.True);
     }

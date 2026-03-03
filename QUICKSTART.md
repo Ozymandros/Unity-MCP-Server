@@ -85,6 +85,12 @@ For IDEs that support MCP extensions, you can add it through the UI or settings 
 
 ## 5. Try it out
 
+Use **projectPath** (project root), **fileName** (file name or path under project), and **folderName** (for folders/list). No duplicate path segments. Example calls:
+
+- Create script: `unity_create_script(projectPath, "Assets/Scripts/SpaceshipController.cs", "SpaceshipController", content)` or `unity_save_script(projectPath, "SpaceshipController.cs", content)` (bare fileName goes under Assets/Scripts).
+- Create scene: `unity_create_scene(projectPath, "Assets/Scenes/Level1.unity")`.
+- List assets: `unity_list_assets(projectPath, "Assets", "*")`.
+
 Ask Claude:
 
 > "Create a new script called 'SpaceshipController' in the Assets/Scripts folder of my Unity project."
