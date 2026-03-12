@@ -543,6 +543,68 @@ public class UnityToolsNewTests
         await _unityService.Received(1).CreateUiLayoutAsync(@"C:\proj", "Assets/Scenes/MainMenu.unity", layoutJson, Arg.Any<CancellationToken>());
         Assert.That(result, Does.Contain("\"success\":false"));
     }
+
+    // ---- Core recipe (Phase 1 orchestration) ----
+
+    [Test]
+    public async Task CreateCoreRecipe_WithProjectPath_CallsServiceStepsAndReturnsJson()
+    {
+        _unityService.InstallPackagesAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":true,\"installed\":[\"com.unity.render-pipelines.universal\"],\"message\":null}"));
+        _unityService.ConfigureUrpAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":true,\"message\":null}"));
+        _unityService.CreateDefaultSceneAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":true,\"scene_path\":\"Assets/Scenes/MainScene.unity\",\"prefab_path\":\"Assets/Prefabs/Ground.prefab\",\"message\":null}"));
+        _unityService.ValidateImportAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":true,\"error_count\":0,\"warning_count\":0,\"message\":null}"));
+
+        var result = await UnityTools.CreateCoreRecipe(_unityService, "", "", @"C:\proj", "MainScene", false);
+
+        Assert.That(result, Does.Contain("\"success\":true"));
+        Assert.That(result, Does.Contain("projectPath"));
+        Assert.That(result, Does.Contain("proj"));
+        Assert.That(result, Does.Contain("\"scene_path\":\"Assets/Scenes/MainScene.unity\""));
+        Assert.That(result, Does.Contain("\"steps\""));
+        await _unityService.Received(1).InstallPackagesAsync(@"C:\proj", Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
+        await _unityService.Received(1).ConfigureUrpAsync(@"C:\proj", Arg.Any<CancellationToken>());
+        await _unityService.Received(1).CreateDefaultSceneAsync(@"C:\proj", "MainScene", Arg.Any<CancellationToken>());
+        await _unityService.Received(1).ValidateImportAsync(@"C:\proj", Arg.Any<CancellationToken>());
+        await _unityService.DidNotReceive().ScaffoldProjectAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+    }
+
+    [Test]
+    public async Task CreateCoreRecipe_WithProjectName_ScaffoldsThenRunsSteps()
+    {
+        _unityService.ScaffoldProjectAsync("MyGame", Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(@"C:\output\MyGame"));
+        _unityService.InstallPackagesAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":true,\"installed\":[],\"message\":null}"));
+        _unityService.ConfigureUrpAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":true,\"message\":null}"));
+        _unityService.CreateDefaultSceneAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":true,\"scene_path\":\"Assets/Scenes/Game.unity\",\"prefab_path\":\"Assets/Prefabs/Ground.prefab\",\"message\":null}"));
+        _unityService.ValidateImportAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":true,\"error_count\":0,\"warning_count\":0,\"message\":null}"));
+
+        var result = await UnityTools.CreateCoreRecipe(_unityService, "MyGame", @"C:\output", "", "Game", false);
+
+        Assert.That(result, Does.Contain("\"success\":true"));
+        Assert.That(result, Does.Contain("MyGame").And.Contain("output"));
+        Assert.That(result, Does.Contain("\"scene_path\":\"Assets/Scenes/Game.unity\""));
+        await _unityService.Received(1).ScaffoldProjectAsync("MyGame", @"C:\output", null, Arg.Any<CancellationToken>());
+        await _unityService.Received(1).InstallPackagesAsync(@"C:\output\MyGame", Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Test]
+    public async Task CreateCoreRecipe_NoProjectPathOrName_ReturnsFailureJson()
+    {
+        var result = await UnityTools.CreateCoreRecipe(_unityService, "", "", "", "MainScene", false);
+
+        Assert.That(result, Does.Contain("\"success\":false"));
+        Assert.That(result, Does.Contain("projectPath"));
+        Assert.That(result, Does.Contain("projectName"));
+        await _unityService.DidNotReceive().ScaffoldProjectAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+    }
 }
 
 // -----------------------------------------------------------------------

@@ -1,9 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Threading;
-using System.Threading.Tasks;
 using ModelContextProtocol.Server;
+using System.ComponentModel;
+using System.Text.Json;
 using UnityMcp.Core.Interfaces;
 
 namespace UnityMcp.Application.Tools;
@@ -458,6 +455,175 @@ public static class UnityTools
         CancellationToken cancellationToken = default)
     {
         return await unityService.CreateUiLayoutAsync(projectPath, fileName, layoutJson, cancellationToken);
+    }
+
+    // -----------------------------------------------------------------------
+    // Orchestration recipe (Phase 1 core recipe)
+    // -----------------------------------------------------------------------
+
+    [McpServerTool(Name = "unity_create_core_recipe"), Description(
+        "End-to-end recipe: scaffold project (or use existing), install URP + TextMeshPro, configure URP, " +
+        "create default scene, optionally add a main menu UI, then run validation. " +
+        "Returns JSON: success, projectPath, scene_path, steps[] with per-step success and message.")]
+    public static async Task<string> CreateCoreRecipe(
+        IUnityService unityService,
+        [Description("Project name when creating a new project (ignored if projectPath is set).")]
+        string projectName = "",
+        [Description("Output root directory for new project (e.g. C:\\output). Ignored if projectPath is set.")]
+        string outputRoot = "",
+        [Description("Existing project root path. If set, scaffold is skipped and this path is used.")]
+        string projectPath = "",
+        [Description("Name of the default scene (without .unity). Default: MainScene")]
+        string sceneName = "MainScene",
+        [Description("If true, create Assets/Scenes/MainMenu.unity with Canvas and a minimal menu layout.")]
+        bool includeMainMenu = false,
+        CancellationToken cancellationToken = default)
+    {
+        var steps = new List<object>();
+        string? resolvedPath = null;
+        string? scenePath = null;
+        bool overallSuccess = true;
+
+        // Resolve project path: use existing or scaffold new
+        if (!string.IsNullOrWhiteSpace(projectPath))
+        {
+            resolvedPath = projectPath.Trim();
+            steps.Add(new { name = "use_existing_project", success = true, message = (string?)null });
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(projectName))
+                return JsonSerializer.Serialize(new { success = false, projectPath = (string?)null, scene_path = (string?)null, steps = steps, message = "Either projectPath or projectName must be provided." });
+            try
+            {
+                resolvedPath = await unityService.ScaffoldProjectAsync(projectName, string.IsNullOrWhiteSpace(outputRoot) ? null : outputRoot, null, cancellationToken);
+                steps.Add(new { name = "scaffold", success = true, message = (string?)null });
+            }
+            catch (Exception ex)
+            {
+                steps.Add(new { name = "scaffold", success = false, message = ex.Message });
+                return JsonSerializer.Serialize(new { success = false, projectPath = (string?)null, scene_path = (string?)null, steps, message = ex.Message });
+            }
+        }
+
+        // Install URP + TextMeshPro
+        try
+        {
+            string json = await unityService.InstallPackagesAsync(resolvedPath!, ["com.unity.render-pipelines.universal", "com.unity.render-pipelines.core", "com.unity.textmeshpro"], cancellationToken);
+            bool stepOk = ParseSuccess(json);
+            steps.Add(new { name = "install_packages", success = stepOk, message = stepOk ? (string?)null : ParseMessage(json) });
+            if (!stepOk) overallSuccess = false;
+        }
+        catch (Exception ex)
+        {
+            steps.Add(new { name = "install_packages", success = false, message = ex.Message });
+            overallSuccess = false;
+        }
+
+        // Configure URP
+        try
+        {
+            string json = await unityService.ConfigureUrpAsync(resolvedPath!, cancellationToken);
+            bool stepOk = ParseSuccess(json);
+            steps.Add(new { name = "configure_urp", success = stepOk, message = stepOk ? (string?)null : ParseMessage(json) });
+            if (!stepOk) overallSuccess = false;
+        }
+        catch (Exception ex)
+        {
+            steps.Add(new { name = "configure_urp", success = false, message = ex.Message });
+            overallSuccess = false;
+        }
+
+        // Create default scene
+        try
+        {
+            string json = await unityService.CreateDefaultSceneAsync(resolvedPath!, sceneName, cancellationToken);
+            bool stepOk = ParseSuccess(json);
+            scenePath = ParseScenePath(json);
+            steps.Add(new { name = "create_default_scene", success = stepOk, message = stepOk ? (string?)null : ParseMessage(json) });
+            if (!stepOk) overallSuccess = false;
+        }
+        catch (Exception ex)
+        {
+            steps.Add(new { name = "create_default_scene", success = false, message = ex.Message });
+            overallSuccess = false;
+        }
+
+        if (includeMainMenu && overallSuccess)
+        {
+            try
+            {
+                string json = await unityService.CreateUiCanvasAsync(resolvedPath!, "Assets/Scenes/MainMenu.unity", cancellationToken);
+                bool stepOk = ParseSuccess(json);
+                steps.Add(new { name = "create_ui_canvas", success = stepOk, message = stepOk ? (string?)null : ParseMessage(json) });
+                if (!stepOk) overallSuccess = false;
+                else
+                {
+                    const string minimalMenu = "{\"name\":\"MainMenu\",\"panels\":[{\"name\":\"RootPanel\",\"controls\":[{\"name\":\"StartButton\",\"type\":0,\"text\":\"Start Game\"}]}]}";
+                    string layoutJson = await unityService.CreateUiLayoutAsync(resolvedPath!, "Assets/Scenes/MainMenu.unity", minimalMenu, cancellationToken);
+                    bool layoutOk = ParseSuccess(layoutJson);
+                    steps.Add(new { name = "create_ui_layout", success = layoutOk, message = layoutOk ? (string?)null : ParseMessage(layoutJson) });
+                    if (!layoutOk) overallSuccess = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                steps.Add(new { name = "create_ui_canvas", success = false, message = ex.Message });
+                overallSuccess = false;
+            }
+        }
+
+        // Validate import
+        try
+        {
+            string json = await unityService.ValidateImportAsync(resolvedPath!, cancellationToken);
+            bool stepOk = ParseSuccess(json);
+            steps.Add(new { name = "validate_import", success = stepOk, message = stepOk ? (string?)null : ParseMessage(json) });
+            if (!stepOk) overallSuccess = false;
+        }
+        catch (Exception ex)
+        {
+            steps.Add(new { name = "validate_import", success = false, message = ex.Message });
+            overallSuccess = false;
+        }
+
+        return JsonSerializer.Serialize(new { success = overallSuccess, projectPath = resolvedPath, scene_path = scenePath, steps, message = (string?)null });
+    }
+
+    private static bool ParseSuccess(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("success", out var prop))
+                return prop.ValueKind == JsonValueKind.True;
+        }
+        catch { /* ignore */ }
+        return false;
+    }
+
+    private static string? ParseMessage(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("message", out var prop) && prop.ValueKind == JsonValueKind.String)
+                return prop.GetString();
+        }
+        catch { /* ignore */ }
+        return null;
+    }
+
+    private static string? ParseScenePath(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("scene_path", out var prop) && prop.ValueKind == JsonValueKind.String)
+                return prop.GetString();
+        }
+        catch { /* ignore */ }
+        return null;
     }
 }
 
