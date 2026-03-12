@@ -937,28 +937,167 @@ public class {scriptName} : MonoBehaviour
     // UI authoring (Phase 1 foundations)
     // -----------------------------------------------------------------------
 
-    public Task<string> CreateUiCanvasAsync(string projectPath, string fileName, CancellationToken cancellationToken = default)
+    public async Task<string> CreateUiCanvasAsync(string projectPath, string fileName, CancellationToken cancellationToken = default)
     {
-        // Phase 1: define contract and provide a clear, non-throwing response.
-        // Actual UGUI YAML generation will be introduced in a later iteration.
-        var result = new
+        if (string.IsNullOrWhiteSpace(projectPath))
+            throw new ArgumentException("Project path is required.", nameof(projectPath));
+        if (string.IsNullOrWhiteSpace(fileName))
+            throw new ArgumentException("File name is required.", nameof(fileName));
+
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        EnsureDirectoryExists(resolvedPath);
+
+        bool isScene = resolvedPath.EndsWith(".unity", StringComparison.OrdinalIgnoreCase);
+        bool exists = _fs.File.Exists(resolvedPath);
+
+        // If this is a new scene, start from a basic camera + light scene.
+        if (isScene && !exists)
         {
-            success = false,
-            message = "unity_create_ui_canvas is not yet implemented in this build. Use scene and prefab authoring tools until UI support is released.",
+            var gameObjects = new List<GameObjectDef>
+            {
+                CreateDefaultCamera(),
+                CreateDefaultLight(),
+            };
+            UnityYamlWriter.ResetFileIdCounter();
+            string yaml = UnityYamlWriter.WriteScene(gameObjects);
+            await _fs.File.WriteAllTextAsync(resolvedPath, yaml, cancellationToken);
+        }
+
+        // Build Canvas and EventSystem GameObjects.
+        var canvas = new GameObjectDef
+        {
+            Name = "Canvas",
+            Tag = "Untagged",
+            Layer = 5, // UI layer
+            Position = new Vector3Def(0, 0, 0),
         };
 
-        return Task.FromResult(JsonSerializer.Serialize(result));
+        var eventSystem = new GameObjectDef
+        {
+            Name = "EventSystem",
+            Tag = "Untagged",
+            Layer = 5,
+            Position = new Vector3Def(0, 0, 0),
+        };
+
+        UnityYamlWriter.ResetFileIdCounter();
+
+        if (isScene)
+        {
+            // Append Canvas and EventSystem fragments to the existing scene file.
+            string canvasFragment = UnityYamlWriter.WriteGameObjectFragment(canvas);
+            string esFragment = UnityYamlWriter.WriteGameObjectFragment(eventSystem);
+            await _fs.File.AppendAllTextAsync(resolvedPath, canvasFragment + esFragment, cancellationToken);
+        }
+        else
+        {
+            // Treat as prefab: create a prefab containing only the Canvas GameObject.
+            string prefabYaml = UnityYamlWriter.WritePrefab(canvas);
+            await _fs.File.WriteAllTextAsync(resolvedPath, prefabYaml, cancellationToken);
+        }
+
+        await _metaWriter.WriteDefaultMetaAsync(resolvedPath, ct: cancellationToken);
+
+        string relativePath = MakeProjectRelativePath(projectPath, resolvedPath);
+        var result = new
+        {
+            success = true,
+            path = relativePath,
+            message = (string?)null,
+        };
+
+        return JsonSerializer.Serialize(result);
     }
 
-    public Task<string> CreateUiLayoutAsync(string projectPath, string fileName, string layoutJson, CancellationToken cancellationToken = default)
+    public async Task<string> CreateUiLayoutAsync(string projectPath, string fileName, string layoutJson, CancellationToken cancellationToken = default)
     {
-        var result = new
+        if (string.IsNullOrWhiteSpace(projectPath))
+            throw new ArgumentException("Project path is required.", nameof(projectPath));
+        if (string.IsNullOrWhiteSpace(fileName))
+            throw new ArgumentException("File name is required.", nameof(fileName));
+        if (string.IsNullOrWhiteSpace(layoutJson))
+            throw new ArgumentException("Layout JSON is required.", nameof(layoutJson));
+
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        if (!_fs.File.Exists(resolvedPath))
+            throw new FileNotFoundException($"Target scene or prefab not found: {resolvedPath}");
+
+        UiLayout layout;
+        try
         {
-            success = false,
-            message = "unity_create_ui_layout is not yet implemented in this build. The UiLayout JSON contract is defined for upcoming releases.",
+            layout = JsonSerializer.Deserialize<UiLayout>(layoutJson, JsonOpts)
+                     ?? throw new InvalidOperationException("Deserialized UiLayout was null.");
+        }
+        catch (Exception ex)
+        {
+            var error = new UnityMcpError
+            {
+                Category = UnityMcpErrorCategory.Validation,
+                Code = "UiLayout.InvalidJson",
+                Message = $"Failed to parse UiLayout JSON: {ex.Message}",
+            };
+
+            var errorResult = new ImportValidationResult
+            {
+                Success = false,
+                ErrorCount = 1,
+                WarningCount = 0,
+                Errors = new[] { error },
+                Warnings = Array.Empty<UnityMcpError>(),
+                Message = "UI layout JSON could not be parsed.",
+            };
+
+            return JsonSerializer.Serialize(errorResult);
+        }
+
+        var uiObjects = new List<GameObjectDef>();
+        foreach (var panel in layout.Panels)
+        {
+            BuildPanelHierarchy(panel, uiObjects);
+        }
+
+        if (uiObjects.Count == 0)
+        {
+            var warning = new UnityMcpError
+            {
+                Category = UnityMcpErrorCategory.Validation,
+                Code = "UiLayout.Empty",
+                Message = "UiLayout contains no panels or controls.",
+            };
+
+            var warnResult = new ImportValidationResult
+            {
+                Success = true,
+                ErrorCount = 0,
+                WarningCount = 1,
+                Errors = Array.Empty<UnityMcpError>(),
+                Warnings = new[] { warning },
+                Message = "UiLayout was empty; no GameObjects were added.",
+            };
+
+            return JsonSerializer.Serialize(warnResult);
+        }
+
+        UnityYamlWriter.ResetFileIdCounter();
+        var sb = new System.Text.StringBuilder();
+        foreach (var go in uiObjects)
+        {
+            sb.Append(UnityYamlWriter.WriteGameObjectFragment(go));
+        }
+
+        await _fs.File.AppendAllTextAsync(resolvedPath, sb.ToString(), cancellationToken);
+
+        var successResult = new ImportValidationResult
+        {
+            Success = true,
+            ErrorCount = 0,
+            WarningCount = 0,
+            Errors = Array.Empty<UnityMcpError>(),
+            Warnings = Array.Empty<UnityMcpError>(),
+            Message = "UI layout applied successfully.",
         };
 
-        return Task.FromResult(JsonSerializer.Serialize(result));
+        return JsonSerializer.Serialize(successResult);
     }
 
     // -----------------------------------------------------------------------
@@ -1031,6 +1170,61 @@ public class {scriptName} : MonoBehaviour
         var dir = _fs.Path.GetDirectoryName(filePath);
         if (!string.IsNullOrEmpty(dir) && !_fs.Directory.Exists(dir))
             _fs.Directory.CreateDirectory(dir);
+    }
+
+    private static string MakeProjectRelativePath(string projectPath, string absolutePath)
+    {
+        try
+        {
+            var projectFull = Path.GetFullPath(projectPath);
+            var fileFull = Path.GetFullPath(absolutePath);
+            if (fileFull.StartsWith(projectFull, StringComparison.OrdinalIgnoreCase))
+            {
+                string trimmed = fileFull.Substring(projectFull.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                return trimmed.Replace('\\', '/');
+            }
+        }
+        catch
+        {
+            // Fall back to absolute path if anything goes wrong.
+        }
+
+        return absolutePath.Replace('\\', '/');
+    }
+
+    private static void BuildPanelHierarchy(UiPanel panel, List<GameObjectDef> output)
+    {
+        var panelGo = new GameObjectDef
+        {
+            Name = string.IsNullOrWhiteSpace(panel.Name) ? "Panel" : panel.Name,
+            Tag = "Untagged",
+            Layer = 5,
+            Position = RectToPosition(panel.Rect),
+        };
+        output.Add(panelGo);
+
+        foreach (var control in panel.Controls)
+        {
+            var controlGo = new GameObjectDef
+            {
+                Name = string.IsNullOrWhiteSpace(control.Name) ? control.Type.ToString() : control.Name,
+                Tag = "Untagged",
+                Layer = 5,
+                Position = RectToPosition(control.Rect),
+            };
+            output.Add(controlGo);
+        }
+
+        foreach (var child in panel.Children)
+        {
+            BuildPanelHierarchy(child, output);
+        }
+    }
+
+    private static Vector3Def RectToPosition(UiRectTransform rect)
+    {
+        // Map anchoredPosition (x, y) into world-space X/Y; keep Z at 0.
+        return new Vector3Def(rect.AnchoredPosition.X, rect.AnchoredPosition.Y, 0);
     }
 
     private string FindUnityExecutable()
