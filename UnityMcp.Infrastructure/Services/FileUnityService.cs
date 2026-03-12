@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using UnityMcp.Core.Contracts;
 using UnityMcp.Core.Interfaces;
 using UnityMcp.Infrastructure.Unity;
 
@@ -699,17 +701,39 @@ public class {scriptName} : MonoBehaviour
                 installed.Add(id);
             }
 
-            var result = new Dictionary<string, object> { ["dependencies"] = merged };
-            string output = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
+            var manifestObject = new Dictionary<string, object> { ["dependencies"] = merged };
+            string output = JsonSerializer.Serialize(manifestObject, new JsonSerializerOptions { WriteIndented = true });
             await _fs.File.WriteAllTextAsync(manifestPath, output, cancellationToken);
             _logger.LogInformation("Installed {Count} packages at {Path}", installed.Count, manifestPath);
 
-            return JsonSerializer.Serialize(new { success = true, installed, message = (string?)null });
+            var result = new InstallPackagesResult
+            {
+                Success = true,
+                Installed = installed,
+                Message = null,
+            };
+
+            return JsonSerializer.Serialize(result);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "InstallPackages failed for {Path}", projectPath);
-            return JsonSerializer.Serialize(new { success = false, installed = Array.Empty<string>(), message = ex.Message });
+            var error = new UnityMcpError
+            {
+                Category = UnityMcpErrorCategory.Internal,
+                Code = "InstallPackages.Failure",
+                Message = ex.Message,
+            };
+
+            var result = new InstallPackagesResult
+            {
+                Success = false,
+                Installed = Array.Empty<string>(),
+                Message = ex.Message,
+                Errors = new[] { error },
+            };
+
+            return JsonSerializer.Serialize(result);
         }
     }
 
@@ -743,12 +767,37 @@ public class {scriptName} : MonoBehaviour
 
             string sceneRelative = "Assets/Scenes/" + sceneName + ".unity";
             string prefabRelative = "Assets/Prefabs/Ground.prefab";
-            return JsonSerializer.Serialize(new { success = true, scene_path = sceneRelative, prefab_path = prefabRelative, message = (string?)null });
+
+            var result = new DefaultSceneResult
+            {
+                Success = true,
+                ScenePath = sceneRelative,
+                PrefabPath = prefabRelative,
+                Message = null,
+            };
+
+            return JsonSerializer.Serialize(result);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "CreateDefaultScene failed for {Path}", projectPath);
-            return JsonSerializer.Serialize(new { success = false, scene_path = (string?)null, prefab_path = (string?)null, message = ex.Message });
+            var error = new UnityMcpError
+            {
+                Category = UnityMcpErrorCategory.Internal,
+                Code = "CreateDefaultScene.Failure",
+                Message = ex.Message,
+            };
+
+            var result = new DefaultSceneResult
+            {
+                Success = false,
+                ScenePath = null,
+                PrefabPath = null,
+                Message = ex.Message,
+                Errors = new[] { error },
+            };
+
+            return JsonSerializer.Serialize(result);
         }
     }
 
@@ -789,15 +838,49 @@ public class {scriptName} : MonoBehaviour
             }
             else if (string.IsNullOrEmpty(rpGuid))
             {
-                return JsonSerializer.Serialize(new { success = false, message = "No RenderPipelineAsset found in project. Add URP package and create or import a pipeline asset." });
+                var error = new UnityMcpError
+                {
+                    Category = UnityMcpErrorCategory.Validation,
+                    Code = "ConfigureUrp.MissingRenderPipelineAsset",
+                    Message = "No RenderPipelineAsset found in project. Add URP package and create or import a pipeline asset.",
+                };
+
+                var noAssetResult = new UrpConfigurationResult
+                {
+                    Success = false,
+                    Message = error.Message,
+                    Errors = new[] { error },
+                };
+
+                return JsonSerializer.Serialize(noAssetResult);
             }
 
-            return JsonSerializer.Serialize(new { success = true, message = (string?)null });
+            var result = new UrpConfigurationResult
+            {
+                Success = true,
+                Message = null,
+            };
+
+            return JsonSerializer.Serialize(result);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "ConfigureUrp failed for {Path}", projectPath);
-            return JsonSerializer.Serialize(new { success = false, message = ex.Message });
+            var error = new UnityMcpError
+            {
+                Category = UnityMcpErrorCategory.Internal,
+                Code = "ConfigureUrp.Failure",
+                Message = ex.Message,
+            };
+
+            var result = new UrpConfigurationResult
+            {
+                Success = false,
+                Message = ex.Message,
+                Errors = new[] { error },
+            };
+
+            return JsonSerializer.Serialize(result);
         }
     }
 
@@ -837,15 +920,45 @@ public class {scriptName} : MonoBehaviour
     /// </summary>
     public Task<string> ValidateImportAsync(string projectPath, CancellationToken cancellationToken = default)
     {
-        return Task.FromResult(JsonSerializer.Serialize(new
+        var result = new ImportValidationResult
         {
-            success = true,
-            error_count = 0,
-            warning_count = 0,
-            errors = Array.Empty<string>(),
-            warnings = Array.Empty<string>(),
-            message = (string?)"Stub: file-only server cannot run Unity compilation. Implement batch-mode validation when Unity is available."
-        }));
+            Success = true,
+            ErrorCount = 0,
+            WarningCount = 0,
+            Errors = Array.Empty<UnityMcpError>(),
+            Warnings = Array.Empty<UnityMcpError>(),
+            Message = "Stub: file-only server cannot run Unity compilation. Implement batch-mode validation when Unity is available.",
+        };
+
+        return Task.FromResult(JsonSerializer.Serialize(result));
+    }
+
+    // -----------------------------------------------------------------------
+    // UI authoring (Phase 1 foundations)
+    // -----------------------------------------------------------------------
+
+    public Task<string> CreateUiCanvasAsync(string projectPath, string fileName, CancellationToken cancellationToken = default)
+    {
+        // Phase 1: define contract and provide a clear, non-throwing response.
+        // Actual UGUI YAML generation will be introduced in a later iteration.
+        var result = new
+        {
+            success = false,
+            message = "unity_create_ui_canvas is not yet implemented in this build. Use scene and prefab authoring tools until UI support is released.",
+        };
+
+        return Task.FromResult(JsonSerializer.Serialize(result));
+    }
+
+    public Task<string> CreateUiLayoutAsync(string projectPath, string fileName, string layoutJson, CancellationToken cancellationToken = default)
+    {
+        var result = new
+        {
+            success = false,
+            message = "unity_create_ui_layout is not yet implemented in this build. The UiLayout JSON contract is defined for upcoming releases.",
+        };
+
+        return Task.FromResult(JsonSerializer.Serialize(result));
     }
 
     // -----------------------------------------------------------------------
@@ -926,16 +1039,59 @@ public class {scriptName} : MonoBehaviour
         if (!string.IsNullOrEmpty(envPath) && _fs.File.Exists(envPath))
             return envPath;
 
-        string[] candidates =
-        [
-            @"C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Unity.exe",
-            @"/Applications/Unity/Hub/Editor/6000.3.2f1/Unity.app/Contents/MacOS/Unity",
-            @"/usr/bin/unity"
-        ];
-
-        foreach (var candidate in candidates)
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            if (_fs.File.Exists(candidate)) return candidate;
+            var programFiles = Environment.GetEnvironmentVariable("ProgramFiles")
+                ?? Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            if (!string.IsNullOrEmpty(programFiles))
+            {
+                var hubEditor = _fs.Path.Combine(programFiles, "Unity", "Hub", "Editor");
+                if (_fs.Directory.Exists(hubEditor))
+                {
+                    foreach (var versionDir in _fs.Directory.EnumerateDirectories(hubEditor).OrderByDescending(d => d))
+                    {
+                        var unityExe = _fs.Path.Combine(versionDir, "Editor", "Unity.exe");
+                        if (_fs.File.Exists(unityExe))
+                            return unityExe;
+                    }
+                }
+            }
+        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            // Standard Unity Hub location on macOS
+            var hubEditor = _fs.Path.Combine("/", "Applications", "Unity", "Hub", "Editor");
+            if (_fs.Directory.Exists(hubEditor))
+            {
+                foreach (var versionDir in _fs.Directory.EnumerateDirectories(hubEditor).OrderByDescending(d => d))
+                {
+                    var unityApp = _fs.Path.Combine(versionDir, "Unity.app", "Contents", "MacOS", "Unity");
+                    if (_fs.File.Exists(unityApp))
+                        return unityApp;
+                }
+            }
+        }
+        else
+        {
+            // Linux and other Unix-like: system path or Unity Hub under user home
+            var linuxUnity = _fs.Path.Combine("/", "usr", "bin", "unity");
+            if (_fs.File.Exists(linuxUnity))
+                return linuxUnity;
+            var home = Environment.GetEnvironmentVariable("HOME")
+                ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (!string.IsNullOrEmpty(home))
+            {
+                var hubEditor = _fs.Path.Combine(home, "Unity", "Hub", "Editor");
+                if (_fs.Directory.Exists(hubEditor))
+                {
+                    foreach (var versionDir in _fs.Directory.EnumerateDirectories(hubEditor).OrderByDescending(d => d))
+                    {
+                        var unityExe = _fs.Path.Combine(versionDir, "Editor", "Unity");
+                        if (_fs.File.Exists(unityExe))
+                            return unityExe;
+                    }
+                }
+            }
         }
 
         throw new FileNotFoundException(

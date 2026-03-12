@@ -518,6 +518,31 @@ public class UnityToolsNewTests
         Assert.That(result, Does.Contain("\"success\":true"));
         Assert.That(result, Does.Contain("error_count"));
     }
+
+    // ---- UI foundations (Phase 1) ----
+
+    [Test]
+    public async Task CreateUiCanvas_CallsServiceAndReturnsJson()
+    {
+        _unityService.CreateUiCanvasAsync(@"C:\proj", "Assets/Scenes/MainMenu.unity", Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":false,\"message\":\"not implemented\"}"));
+
+        var result = await UnityTools.CreateUiCanvas(_unityService, @"C:\proj", "Assets/Scenes/MainMenu.unity");
+        await _unityService.Received(1).CreateUiCanvasAsync(@"C:\proj", "Assets/Scenes/MainMenu.unity", Arg.Any<CancellationToken>());
+        Assert.That(result, Does.Contain("\"success\":false"));
+    }
+
+    [Test]
+    public async Task CreateUiLayout_CallsServiceAndReturnsJson()
+    {
+        const string layoutJson = "{\"name\":\"MainMenu\",\"panels\":[]}";
+        _unityService.CreateUiLayoutAsync(@"C:\proj", "Assets/Scenes/MainMenu.unity", layoutJson, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":false,\"message\":\"not implemented\"}"));
+
+        var result = await UnityTools.CreateUiLayout(_unityService, @"C:\proj", "Assets/Scenes/MainMenu.unity", layoutJson);
+        await _unityService.Received(1).CreateUiLayoutAsync(@"C:\proj", "Assets/Scenes/MainMenu.unity", layoutJson, Arg.Any<CancellationToken>());
+        Assert.That(result, Does.Contain("\"success\":false"));
+    }
 }
 
 // -----------------------------------------------------------------------
@@ -822,6 +847,8 @@ public class FileUnityServiceNewToolsTests
         string json = await _service.CreateDefaultSceneAsync(proj, "MainScene");
 
         Assert.That(json, Does.Contain("\"success\":true"));
+        Assert.That(json, Does.Contain("scene_path"));
+        Assert.That(json, Does.Contain("prefab_path"));
         Assert.That(json, Does.Contain("Assets/Scenes/MainScene.unity"));
         Assert.That(json, Does.Contain("Assets/Prefabs/Ground.prefab"));
 

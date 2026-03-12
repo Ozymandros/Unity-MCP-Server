@@ -88,12 +88,6 @@ Save AI-generated content into the correct Unity folder with the matching import
 
 ## 📖 Complete Tool Reference (26 tools)
 
-### Path handling
-
-- **projectPath**: Unity project root (camelCase). Use the path returned by `unity_scaffold_project` or an absolute path to an existing project.
-- **fileName**: File name or path under the project (e.g. `Player.cs`, `Assets/Scripts/Player.cs`). Used for all file-oriented tools. The server validates both projectPath and fileName and builds the final I/O path so subfolder segments (e.g. `/Assets`, `/Scripts`) appear only once — no duplication.
-- **folderName**: Folder name or path under the project (e.g. `Assets`, `Assets/Scripts`). Used for `unity_create_folder` and `unity_list_assets`. Same no-duplicate rule: final path = projectPath + folderName with overlapping segments stripped.
-
 ### 📡 Connectivity
 
 | Tool | Description | Parameters |
@@ -106,42 +100,42 @@ Save AI-generated content into the correct Unity folder with the matching import
 |:---|:---|:---|
 | `unity_scaffold_project` | Create full project skeleton with .meta | `projectName`, `outputRoot?`, `unityVersion?` |
 | `unity_get_project_info` | Get project metadata as JSON | `projectPath` |
-| `unity_create_folder` | Create folder with .meta sidecar | `projectPath`, `folderName` |
+| `unity_create_folder` | Create folder with .meta sidecar | `folderPath` |
 
 ### 🎬 Scene Authoring
 
 | Tool | Description | Key Parameters |
 |:---|:---|:---|
-| `unity_create_scene` | Basic scene with default camera+light | `projectPath`, `fileName` |
-| `unity_create_detailed_scene` | Full scene from JSON GameObjects array | `projectPath`, `fileName`, `sceneJson` |
-| `unity_add_gameobject` | Append a GO to an existing scene | `projectPath`, `fileName`, `gameObjectJson` |
-| `unity_create_gameobject` | Simple named GO (legacy) | `projectPath`, `fileName`, `gameObjectName` |
+| `unity_create_scene` | Basic scene with default camera+light | `path` |
+| `unity_create_detailed_scene` | Full scene from JSON GameObjects array | `path`, `sceneJson` |
+| `unity_add_gameobject` | Append a GO to an existing scene | `scenePath`, `gameObjectJson` |
+| `unity_create_gameobject` | Simple named GO (legacy) | `scenePath`, `gameObjectName` |
 
 ### 🧱 Asset Creation (with .meta sidecars)
 
 | Tool | Description | Key Parameters |
 |:---|:---|:---|
-| `unity_create_script` | C# MonoBehaviour (+ MonoImporter .meta) | `projectPath`, `fileName`, `scriptName`, `content?` |
-| `unity_create_material` | PBR material (.mat) from JSON | `projectPath`, `fileName`, `materialJson` |
-| `unity_create_prefab` | Prefab (.prefab) from JSON | `projectPath`, `fileName`, `prefabJson` |
-| `unity_create_asset` | Generic text file (+ .meta) | `projectPath`, `fileName`, `content` |
+| `unity_create_script` | C# MonoBehaviour (+ MonoImporter .meta) | `path`, `scriptName`, `content?` |
+| `unity_create_material` | PBR material (.mat) from JSON | `path`, `materialJson` |
+| `unity_create_prefab` | Prefab (.prefab) from JSON | `path`, `prefabJson` |
+| `unity_create_asset` | Generic text file (+ .meta) | `path`, `content` |
 
 ### 💾 Typed Asset Saving (project-relative + .meta)
 
 | Tool | Description | Key Parameters |
 |:---|:---|:---|
-| `unity_save_script` | Save C# script + MonoImporter .meta | `projectPath`, `fileName`, `content` |
-| `unity_save_text` | Save text + DefaultImporter .meta | `projectPath`, `fileName`, `content` |
-| `unity_save_texture` | Save base64 image + TextureImporter .meta | `projectPath`, `fileName`, `base64Data` |
-| `unity_save_audio` | Save base64 audio + AudioImporter .meta | `projectPath`, `fileName`, `base64Data` |
+| `unity_save_script` | Save C# script → Assets/Scripts/ + MonoImporter .meta | `projectPath`, `fileName`, `content` |
+| `unity_save_text` | Save text → Assets/Text/ + DefaultImporter .meta | `projectPath`, `fileName`, `content` |
+| `unity_save_texture` | Save base64 image → Assets/Textures/ + TextureImporter .meta | `projectPath`, `fileName`, `base64Data` |
+| `unity_save_audio` | Save base64 audio → Assets/Audio/ + AudioImporter .meta | `projectPath`, `fileName`, `base64Data` |
 
 ### 📂 File Operations
 
 | Tool | Description | Key Parameters |
 |:---|:---|:---|
-| `unity_list_assets` | List files in directory | `projectPath`, `folderName`, `pattern` |
-| `unity_read_asset` | Read file content | `projectPath`, `fileName` |
-| `unity_delete_asset` | Delete file + .meta | `projectPath`, `fileName` |
+| `unity_list_assets` | List files in directory | `path`, `pattern` |
+| `unity_read_asset` | Read file content | `path` |
+| `unity_delete_asset` | Delete file + .meta | `path` |
 
 ### ✅ Validation & Packages
 
@@ -152,14 +146,14 @@ Save AI-generated content into the correct Unity folder with the matching import
 
 ### 🔌 MCP-Unity contract tools (JSON return)
 
-All take `projectPath` (project root). Return JSON for client parsing.
+All take `project_path` (absolute path to Unity project root). Return JSON for client parsing. Optional timeout applies when supported by transport.
 
 | Tool | Description | Parameters | Return JSON |
 |:---|:---|:---|:---|
-| `unity_install_packages` | Install UPM packages by ID (add to manifest in order) | `projectPath`, `packages` (string[]) | `success`, `installed` (string[]), `message?` |
-| `unity_create_default_scene` | Default scene: Main Camera, Directional Light, Ground plane; scene + Ground.prefab | `projectPath`, `sceneName` | `success`, `scene_path?`, `prefab_path?`, `message?` |
-| `unity_configure_urp` | Linear color space, TagManager, default render pipeline | `projectPath` | `success`, `message?` |
-| `unity_validate_import` | Asset refresh + script compilation; errors and warnings | `projectPath` | `success`, `error_count`, `warning_count`, `errors?`, `warnings?`, `message?` |
+| `unity_install_packages` | Install UPM packages by ID (add to manifest in order; default version if not sent) | `project_path`, `packages` (string[]) | `success`, `installed` (string[]), `message?` |
+| `unity_create_default_scene` | Default scene: Main Camera (0,1,-10, Skybox), Directional Light (50,-30,0), Ground plane (5,1,5); scene + Ground.prefab | `project_path`, `scene_name` | `success`, `scene_path?`, `prefab_path?`, `message?` |
+| `unity_configure_urp` | Linear color space, TagManager (tags Generated/AutoSetup, layers 8–9), default render pipeline | `project_path` | `success`, `message?` |
+| `unity_validate_import` | Asset refresh + script compilation; errors and warnings (file-only stub: success, 0 counts until Unity batch integrated) | `project_path` | `success`, `error_count`, `warning_count`, `errors?`, `warnings?`, `message?` |
 
 On failure for any tool: `success: false` and `message` (and tool-specific fields as applicable).
 
@@ -167,7 +161,7 @@ On failure for any tool: `success: false` and `message` (and tool-specific field
 
 | Tool | Description | Key Parameters |
 |:---|:---|:---|
-| `unity_build_project` | Unity CLI batch build | `projectPath`, `target`, `outputPath` |
+| `unity_build_project` | Unity CLI batch build | `target`, `outputPath` |
 
 ## 📦 GameObject JSON Format
 
@@ -216,15 +210,16 @@ On failure for any tool: `success: false` and `message` (and tool-specific field
 
 ## 💡 Recommended AI Workflow
 
-1. `unity_scaffold_project` → Create project skeleton; use returned path as `projectPath` for all following tools.
-2. `unity_create_detailed_scene`(projectPath, fileName, sceneJson) → Create full scene.
-3. `unity_save_script`(projectPath, fileName, content) → Save C# scripts (fileName = bare name or path; no duplicate segments).
-4. `unity_save_texture` / `unity_save_audio` → Save generated assets.
-5. `unity_create_material`(projectPath, fileName, materialJson) → Materials.
-6. `unity_create_prefab`(projectPath, fileName, prefabJson) → Prefabs.
-7. `unity_validate_csharp` → Verify scripts before saving.
-8. `unity_add_packages`(projectPath, packagesJson) → Add UPM dependencies.
-9. `unity_list_assets`(projectPath, folderName, pattern) → Verify everything is in place.
+1. `unity_scaffold_project` → Create project skeleton with all folders
+2. `unity_create_detailed_scene` → Create full scene with all objects
+3. `unity_save_script` → Save AI-generated C# scripts (with .meta)
+4. `unity_save_texture` → Save generated textures (with .meta)
+5. `unity_save_audio` → Save generated audio (with .meta)
+6. `unity_create_material` → Materials for each visual object
+7. `unity_create_prefab` → Reusable object templates
+8. `unity_validate_csharp` → Verify scripts before saving
+9. `unity_add_packages` → Add UPM dependencies
+10. `unity_list_assets` → Verify everything is in place
 
 ## 🔧 Setup
 

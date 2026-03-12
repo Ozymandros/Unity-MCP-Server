@@ -166,4 +166,21 @@ public interface IUnityService
     /// Returns JSON: success, error_count, warning_count, errors, warnings, message.
     /// </summary>
     Task<string> ValidateImportAsync(string projectPath, CancellationToken cancellationToken = default);
+
+    // -----------------------------------------------------------------------
+    // UI authoring (Phase 1 foundations)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Creates or updates a UGUI Canvas (with EventSystem) as a Unity scene or prefab.
+    /// fileName can be a path or name; no duplicate segments.
+    /// The returned JSON is currently a simple status payload and may be extended in future versions.
+    /// </summary>
+    Task<string> CreateUiCanvasAsync(string projectPath, string fileName, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Applies a high-level UiLayout (see UiContracts) to a Canvas in a scene or prefab.
+    /// fileName can be a path or name; no duplicate segments.
+    /// </summary>
+    Task<string> CreateUiLayoutAsync(string projectPath, string fileName, string layoutJson, CancellationToken cancellationToken = default);
 }
