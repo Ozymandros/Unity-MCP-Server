@@ -728,7 +728,7 @@ public class UnityToolsNewTests
         _unityService.ValidateImportAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult("{\"success\":true,\"error_count\":0,\"warning_count\":0,\"message\":null}"));
 
-        var result = await UnityTools.CreatePrototypeRecipe(_unityService, "", "", @"C:\proj", "MainScene", false, false, false, false, false);
+        var result = await UnityTools.CreatePrototypeRecipe(_unityService, "", "", @"C:\proj", "MainScene", false, false, false, false, false, false, false);
 
         Assert.That(result, Does.Contain("\"success\":true"));
         Assert.That(result, Does.Contain("projectPath"));
@@ -737,7 +737,6 @@ public class UnityToolsNewTests
         Assert.That(result, Does.Contain("\"steps\""));
         Assert.That(result, Does.Contain("use_existing_project"));
         Assert.That(result, Does.Contain("install_packages"));
-        Assert.That(result, Does.Contain("configure_urp"));
         Assert.That(result, Does.Contain("create_default_scene"));
         Assert.That(result, Does.Contain("validate_import"));
         await _unityService.Received(1).InstallPackagesAsync(@"C:\proj", Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
@@ -749,6 +748,8 @@ public class UnityToolsNewTests
         await _unityService.DidNotReceive().CreateWaypointGraphAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _unityService.DidNotReceive().CreateInputActionsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _unityService.DidNotReceive().CreateBasicAnimatorAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _unityService.DidNotReceive().CreateAdvancedAnimatorAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _unityService.DidNotReceive().CreateTimelineAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _unityService.DidNotReceive().CreateVfxAssetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _unityService.DidNotReceive().CreatePhysicsSetupAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
@@ -772,6 +773,10 @@ public class UnityToolsNewTests
             .Returns(Task.FromResult("{\"success\":true,\"message\":null}"));
         _unityService.CreateBasicAnimatorAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult("{\"success\":true,\"message\":null}"));
+        _unityService.CreateAdvancedAnimatorAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":true,\"message\":null}"));
+        _unityService.CreateTimelineAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":true,\"message\":null}"));
         _unityService.CreateVfxAssetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult("{\"success\":true,\"message\":null}"));
         _unityService.CreatePhysicsSetupAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -779,7 +784,7 @@ public class UnityToolsNewTests
         _unityService.ValidateImportAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult("{\"success\":true,\"error_count\":0,\"warning_count\":0,\"message\":null}"));
 
-        var result = await UnityTools.CreatePrototypeRecipe(_unityService, "PrototypeGame", @"C:\out", "", "MainScene", true, true, true, true, true);
+        var result = await UnityTools.CreatePrototypeRecipe(_unityService, "PrototypeGame", @"C:\out", "", "MainScene", true, true, true, true, true, true, true);
 
         Assert.That(result, Does.Contain("\"success\":true"));
         Assert.That(result, Does.Contain("PrototypeGame"));
@@ -789,6 +794,8 @@ public class UnityToolsNewTests
         Assert.That(result, Does.Contain("create_waypoint_graph"));
         Assert.That(result, Does.Contain("create_input_actions"));
         Assert.That(result, Does.Contain("create_basic_animator"));
+        Assert.That(result, Does.Contain("create_advanced_animator"));
+        Assert.That(result, Does.Contain("create_timeline"));
         Assert.That(result, Does.Contain("create_vfx_asset"));
         Assert.That(result, Does.Contain("create_physics_setup"));
         Assert.That(result, Does.Contain("validate_import"));
@@ -797,6 +804,8 @@ public class UnityToolsNewTests
         await _unityService.Received(1).CreateWaypointGraphAsync(@"C:\out\PrototypeGame", "Assets/Data/PatrolRoute.waypoints.json", Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _unityService.Received(1).CreateInputActionsAsync(@"C:\out\PrototypeGame", "Assets/Input/PlayerControls.inputactions", Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _unityService.Received(1).CreateBasicAnimatorAsync(@"C:\out\PrototypeGame", "Assets/Animations/Character.animator.json", Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _unityService.Received(1).CreateAdvancedAnimatorAsync(@"C:\out\PrototypeGame", "Assets/Animations/CharacterAdvanced.animator.json", Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _unityService.Received(1).CreateTimelineAsync(@"C:\out\PrototypeGame", "Assets/Timelines/IntroCutscene.timeline.json", Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _unityService.Received(1).CreateVfxAssetAsync(@"C:\out\PrototypeGame", "Assets/VFX/ExplosionSmall.vfx.json", Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _unityService.Received(1).CreatePhysicsSetupAsync(@"C:\out\PrototypeGame", "Assets/Physics/HumanoidRagdoll.physics.json", Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
@@ -815,7 +824,7 @@ public class UnityToolsNewTests
         _unityService.ValidateImportAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult("{\"success\":true,\"error_count\":0,\"message\":null}"));
 
-        var result = await UnityTools.CreatePrototypeRecipe(_unityService, "", "", @"C:\proj", "MainScene", false, true, false, false, false);
+        var result = await UnityTools.CreatePrototypeRecipe(_unityService, "", "", @"C:\proj", "MainScene", false, true, false, false, false, false, false);
 
         Assert.That(result, Does.Contain("\"success\":false"));
         Assert.That(result, Does.Contain("create_input_actions"));

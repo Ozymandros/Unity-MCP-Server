@@ -746,7 +746,7 @@ public static class UnityTools
 
     [McpServerTool(Name = "unity_create_prototype_recipe"), Description(
         "Phase 2/3 project bootstrapper: scaffold (or use existing project), URP + packages, default scene, " +
-        "then optionally add nav config + waypoint graph, input actions, basic animator, VFX asset, physics setup, and validate. " +
+        "then optionally add nav config + waypoint graph, input actions, basic animator, advanced animator, timeline, VFX asset, physics setup, and validate. " +
         "Returns JSON: success, projectPath, scene_path, steps[] with per-step success and message.")]
     public static async Task<string> CreatePrototypeRecipe(
         IUnityService unityService,
@@ -764,6 +764,10 @@ public static class UnityTools
         bool includeInput = false,
         [Description("If true, add a default basic animator (Assets/Animations/Character.animator.json).")]
         bool includeAnimator = false,
+        [Description("If true, add a default advanced animator (Assets/Animations/CharacterAdvanced.animator.json).")]
+        bool includeAdvancedAnimator = false,
+        [Description("If true, add a default timeline (Assets/Timelines/IntroCutscene.timeline.json).")]
+        bool includeTimeline = false,
         [Description("If true, add a default VFX asset (Assets/VFX/ExplosionSmall.vfx.json).")]
         bool includeVfx = false,
         [Description("If true, add a default physics setup (Assets/Physics/HumanoidRagdoll.physics.json).")]
@@ -896,6 +900,40 @@ public static class UnityTools
             catch (Exception ex)
             {
                 steps.Add(new { name = "create_basic_animator", success = false, message = ex.Message });
+                overallSuccess = false;
+            }
+        }
+
+        if (includeAdvancedAnimator)
+        {
+            const string advancedAnimatorJson = "{\"layers\":[{\"name\":\"Base Layer\",\"defaultState\":\"Idle\",\"states\":[{\"name\":\"Idle\",\"clip\":null}],\"subStateMachines\":[]}]}";
+            try
+            {
+                string json = await unityService.CreateAdvancedAnimatorAsync(resolvedPath!, "Assets/Animations/CharacterAdvanced.animator.json", advancedAnimatorJson, cancellationToken);
+                bool stepOk = ParseSuccess(json);
+                steps.Add(new { name = "create_advanced_animator", success = stepOk, message = stepOk ? (string?)null : ParseMessage(json) });
+                if (!stepOk) overallSuccess = false;
+            }
+            catch (Exception ex)
+            {
+                steps.Add(new { name = "create_advanced_animator", success = false, message = ex.Message });
+                overallSuccess = false;
+            }
+        }
+
+        if (includeTimeline)
+        {
+            const string timelineJson = "{\"name\":\"IntroCutscene\",\"tracks\":[{\"type\":\"Animation\",\"binding\":\"Player\",\"clips\":[{\"name\":\"IntroPose\",\"clip\":\"Assets/Animations/IntroPose.anim\",\"start\":0.0,\"duration\":2.0}]}]}";
+            try
+            {
+                string json = await unityService.CreateTimelineAsync(resolvedPath!, "Assets/Timelines/IntroCutscene.timeline.json", timelineJson, cancellationToken);
+                bool stepOk = ParseSuccess(json);
+                steps.Add(new { name = "create_timeline", success = stepOk, message = stepOk ? (string?)null : ParseMessage(json) });
+                if (!stepOk) overallSuccess = false;
+            }
+            catch (Exception ex)
+            {
+                steps.Add(new { name = "create_timeline", success = false, message = ex.Message });
                 overallSuccess = false;
             }
         }

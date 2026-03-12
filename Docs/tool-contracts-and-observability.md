@@ -280,9 +280,9 @@ The **`unity_create_core_recipe`** MCP tool returns a JSON summary that reuses t
 - **Top-level**: `success`, `projectPath`, `scene_path`, `steps`, `message`.
 - **steps[]**: array of `{ name, success, message? }` for each step (scaffold, install_packages, configure_urp, create_default_scene, optional create_ui_canvas/create_ui_layout, validate_import).
 
-The **`unity_create_prototype_recipe`** MCP tool is a Phase 2/3 project bootstrapper with the same JSON result shape. It resolves the project (existing `projectPath` or scaffold via `projectName` + `outputRoot`), then runs: install_packages, configure_urp, create_default_scene; optionally (when flags are true) configure_navmesh, create_waypoint_graph, create_input_actions, create_basic_animator, create_vfx_asset, create_physics_setup; and always validate_import last.
+The **`unity_create_prototype_recipe`** MCP tool is a Phase 2/3 project bootstrapper with the same JSON result shape. It resolves the project (existing `projectPath` or scaffold via `projectName` + `outputRoot`), then runs: install_packages, configure_urp, create_default_scene; optionally (when flags are true) configure_navmesh, create_waypoint_graph, create_input_actions, create_basic_animator, create_advanced_animator, create_timeline, create_vfx_asset, create_physics_setup; and always validate_import last.
 
-- **Parameters**: `projectName`, `outputRoot`, `projectPath`, `sceneName` (default `"MainScene"`), `includeNav`, `includeInput`, `includeAnimator`, `includeVfx`, `includePhysics` (all optional booleans, default false).
+- **Parameters**: `projectName`, `outputRoot`, `projectPath`, `sceneName` (default `"MainScene"`), `includeNav`, `includeInput`, `includeAnimator`, `includeAdvancedAnimator`, `includeTimeline`, `includeVfx`, `includePhysics` (all optional booleans, default false).
 - **Result**: Same as core recipe — `success`, `projectPath`, `scene_path`, `steps[]` (with per-step `name`, `success`, `message?`), `message`. Clients can reuse the same step-parsing logic as for `unity_create_core_recipe`.
 
 Full parameter list, step order, and example response for the core recipe are documented in [UI Schema and Tools (§4 Recipes)](ui-schema-and-tools.md#4-recipes).
