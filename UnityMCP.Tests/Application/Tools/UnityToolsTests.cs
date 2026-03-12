@@ -599,6 +599,59 @@ public class UnityToolsNewTests
         Assert.That(result, Does.Contain("\"success\":true"));
     }
 
+    // ---- Advanced Animation & Timelines (Phase 3) ----
+
+    [Test]
+    public async Task CreateAdvancedAnimator_CallsServiceAndReturnsJson()
+    {
+        const string advancedJson = "{\"layers\":[{\"name\":\"Base Layer\",\"defaultState\":\"Locomotion\",\"states\":[{\"name\":\"Locomotion\",\"clip\":\"Assets/Animations/Locomotion.anim\"}],\"subStateMachines\":[]}]}";
+        _unityService.CreateAdvancedAnimatorAsync(@"C:\proj", "Assets/Animations/CharacterAdvanced.animator.json", advancedJson, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":true,\"path\":\"Assets/Animations/CharacterAdvanced.animator.json\",\"message\":\"Advanced animator definition created successfully.\",\"errors\":[]}"));
+
+        var result = await UnityTools.CreateAdvancedAnimator(_unityService, @"C:\proj", "Assets/Animations/CharacterAdvanced.animator.json", advancedJson);
+        await _unityService.Received(1).CreateAdvancedAnimatorAsync(@"C:\proj", "Assets/Animations/CharacterAdvanced.animator.json", advancedJson, Arg.Any<CancellationToken>());
+        Assert.That(result, Does.Contain("\"success\":true"));
+    }
+
+    [Test]
+    public async Task CreateTimeline_CallsServiceAndReturnsJson()
+    {
+        const string timelineJson = "{\"name\":\"IntroCutscene\",\"tracks\":[]}";
+        _unityService.CreateTimelineAsync(@"C:\proj", "Assets/Timelines/IntroCutscene.timeline.json", timelineJson, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":true,\"path\":\"Assets/Timelines/IntroCutscene.timeline.json\",\"message\":\"Timeline created successfully.\",\"errors\":[],\"warnings\":[]}"));
+
+        var result = await UnityTools.CreateTimeline(_unityService, @"C:\proj", "Assets/Timelines/IntroCutscene.timeline.json", timelineJson);
+        await _unityService.Received(1).CreateTimelineAsync(@"C:\proj", "Assets/Timelines/IntroCutscene.timeline.json", timelineJson, Arg.Any<CancellationToken>());
+        Assert.That(result, Does.Contain("\"success\":true"));
+    }
+
+    [Test]
+    public async Task CreatePhysicsSetup_CallsServiceAndReturnsJson()
+    {
+        const string physicsJson = "{\"name\":\"HumanoidRagdoll\",\"bones\":[{\"name\":\"Hips\",\"colliderType\":\"Capsule\",\"mass\":10.0}],\"joints\":[]}";
+        _unityService.CreatePhysicsSetupAsync(@"C:\proj", "Assets/Physics/HumanoidRagdoll.physics.json", physicsJson, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":true,\"path\":\"Assets/Physics/HumanoidRagdoll.physics.json\",\"message\":\"Physics setup created successfully.\",\"errors\":[]}"));
+
+        var result = await UnityTools.CreatePhysicsSetup(_unityService, @"C:\proj", "Assets/Physics/HumanoidRagdoll.physics.json", physicsJson);
+        await _unityService.Received(1).CreatePhysicsSetupAsync(@"C:\proj", "Assets/Physics/HumanoidRagdoll.physics.json", physicsJson, Arg.Any<CancellationToken>());
+        Assert.That(result, Does.Contain("\"success\":true"));
+    }
+
+    // ---- VFX / particles (Phase 3) ----
+
+    [Test]
+    public async Task CreateVfxAsset_CallsServiceAndReturnsJson()
+    {
+        const string vfxJson = "{\"name\":\"ExplosionSmall\",\"duration\":1.0,\"looping\":false,\"startLifetime\":0.5,\"startSpeed\":5.0,\"startSize\":1.0,\"startColor\":{\"r\":1,\"g\":0.6,\"b\":0.1,\"a\":1},\"emission\":{\"rateOverTime\":0,\"bursts\":[{\"time\":0.0,\"count\":50}]},\"shape\":{\"type\":\"Sphere\",\"radius\":0.5}}";
+        _unityService.CreateVfxAssetAsync(@"C:\proj", "Assets/VFX/ExplosionSmall.vfx.json", vfxJson, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":true,\"path\":\"Assets/VFX/ExplosionSmall.vfx.json\",\"message\":\"VFX asset created successfully.\",\"errors\":[]}"));
+
+        var result = await UnityTools.CreateVfxAsset(_unityService, @"C:\proj", "Assets/VFX/ExplosionSmall.vfx.json", vfxJson);
+        await _unityService.Received(1).CreateVfxAssetAsync(@"C:\proj", "Assets/VFX/ExplosionSmall.vfx.json", vfxJson, Arg.Any<CancellationToken>());
+        Assert.That(result, Does.Contain("\"success\":true"));
+        Assert.That(result, Does.Contain("ExplosionSmall.vfx.json"));
+    }
+
     // ---- Core recipe (Phase 1 orchestration) ----
 
     [Test]
@@ -1191,6 +1244,171 @@ public class FileUnityServiceNewToolsTests
         Assert.That(json, Does.Contain("warnings"));
         Assert.That(json, Does.Contain("BasicAnimator.MissingClip"));
         Assert.That(json, Does.Contain("NonExistent"));
+    }
+
+    // ---- Advanced Animation & Timelines (Phase 3) ----
+
+    [Test]
+    public async Task CreateAdvancedAnimatorAsync_ValidDefinition_WritesAsset()
+    {
+        string proj = await _service.ScaffoldProjectAsync("AdvancedAnimator", @"C:\output");
+        const string advancedJson = "{\"layers\":[{\"name\":\"Base Layer\",\"defaultState\":\"Locomotion\",\"states\":[{\"name\":\"Locomotion\",\"clip\":\"Assets/Animations/Locomotion.anim\"}],\"subStateMachines\":[]}]}";
+        string json = await _service.CreateAdvancedAnimatorAsync(proj, "Assets/Animations/CharacterAdvanced.animator.json", advancedJson);
+
+        Assert.That(json, Does.Contain("\"success\":true"));
+        Assert.That(json, Does.Contain("path"));
+        string assetPath = _mockFs.Path.Combine(proj, "Assets", "Animations", "CharacterAdvanced.animator.json");
+        Assert.That(_mockFs.File.Exists(assetPath), Is.True);
+        Assert.That(_mockFs.File.Exists(assetPath + ".meta"), Is.True);
+        string content = _mockFs.File.ReadAllText(assetPath);
+        Assert.That(content, Does.Contain("Base Layer"));
+        Assert.That(content, Does.Contain("Locomotion"));
+    }
+
+    [Test]
+    public async Task CreateAdvancedAnimatorAsync_InvalidJson_ReturnsValidationError()
+    {
+        string proj = await _service.ScaffoldProjectAsync("AdvancedAnimatorInvalid", @"C:\output");
+        string json = await _service.CreateAdvancedAnimatorAsync(proj, "Assets/Animations/Bad.animator.json", "{ invalid }");
+
+        Assert.That(json, Does.Contain("\"success\":false"));
+        Assert.That(json, Does.Contain("AdvancedAnimator.InvalidJson"));
+    }
+
+    [Test]
+    public async Task CreateAdvancedAnimatorAsync_InvalidStructure_ReturnsValidationErrors()
+    {
+        string proj = await _service.ScaffoldProjectAsync("AdvancedAnimatorBadStructure", @"C:\output");
+        const string advancedJson = "{\"layers\":[{\"name\":\"Base Layer\",\"defaultState\":\"MissingState\",\"states\":[],\"subStateMachines\":[]}]}";
+        string json = await _service.CreateAdvancedAnimatorAsync(proj, "Assets/Animations/BadStructure.animator.json", advancedJson);
+
+        Assert.That(json, Does.Contain("\"success\":false"));
+        Assert.That(json, Does.Contain("AdvancedAnimator.InvalidLayer"));
+        Assert.That(json, Does.Contain("MissingState"));
+    }
+
+    [Test]
+    public async Task CreateTimelineAsync_ValidDefinition_WritesAssetAndReturnsSuccess()
+    {
+        string proj = await _service.ScaffoldProjectAsync("Timeline", @"C:\output");
+        const string timelineJson = "{\"name\":\"IntroCutscene\",\"tracks\":[{\"type\":\"Animation\",\"binding\":\"Player\",\"clips\":[{\"name\":\"IntroPose\",\"clip\":\"Assets/Animations/IntroPose.anim\",\"start\":0.0,\"duration\":2.0}]}]}";
+        string json = await _service.CreateTimelineAsync(proj, "Assets/Timelines/IntroCutscene.timeline.json", timelineJson);
+
+        Assert.That(json, Does.Contain("\"success\":true"));
+        Assert.That(json, Does.Contain("path"));
+        string assetPath = _mockFs.Path.Combine(proj, "Assets", "Timelines", "IntroCutscene.timeline.json");
+        Assert.That(_mockFs.File.Exists(assetPath), Is.True);
+        Assert.That(_mockFs.File.Exists(assetPath + ".meta"), Is.True);
+        string content = _mockFs.File.ReadAllText(assetPath);
+        Assert.That(content, Does.Contain("IntroCutscene"));
+        Assert.That(content, Does.Contain("IntroPose"));
+    }
+
+    [Test]
+    public async Task CreateTimelineAsync_InvalidJson_ReturnsValidationError()
+    {
+        string proj = await _service.ScaffoldProjectAsync("TimelineInvalid", @"C:\output");
+        string json = await _service.CreateTimelineAsync(proj, "Assets/Timelines/Bad.timeline.json", "{ invalid }");
+
+        Assert.That(json, Does.Contain("\"success\":false"));
+        Assert.That(json, Does.Contain("Timeline.InvalidJson"));
+    }
+
+    [Test]
+    public async Task CreateTimelineAsync_MissingAssets_EmitsWarnings()
+    {
+        string proj = await _service.ScaffoldProjectAsync("TimelineMissingAssets", @"C:\output");
+        const string timelineJson = "{\"name\":\"IntroCutscene\",\"tracks\":[{\"type\":\"Animation\",\"binding\":\"Player\",\"clips\":[{\"name\":\"IntroPose\",\"clip\":\"Assets/Animations/Missing.anim\",\"start\":0.0,\"duration\":2.0}]},{\"type\":\"Audio\",\"binding\":\"MusicSource\",\"clips\":[{\"name\":\"IntroMusic\",\"audio\":\"Assets/Audio/Missing.ogg\",\"start\":0.0,\"duration\":30.0}]}]}";
+        string json = await _service.CreateTimelineAsync(proj, "Assets/Timelines/IntroCutscene.timeline.json", timelineJson);
+
+        Assert.That(json, Does.Contain("\"success\":true"));
+        Assert.That(json, Does.Contain("warnings"));
+        Assert.That(json, Does.Contain("Timeline.MissingClip"));
+        Assert.That(json, Does.Contain("Timeline.MissingAudio"));
+    }
+
+    [Test]
+    public async Task CreatePhysicsSetupAsync_ValidDefinition_WritesAssetAndReturnsSuccess()
+    {
+        string proj = await _service.ScaffoldProjectAsync("PhysicsSetup", @"C:\output");
+        const string physicsJson = "{\"name\":\"HumanoidRagdoll\",\"bones\":[{\"name\":\"Hips\",\"colliderType\":\"Capsule\",\"mass\":10.0},{\"name\":\"Spine\",\"colliderType\":\"Box\",\"mass\":8.0}],\"joints\":[{\"name\":\"SpineJoint\",\"type\":\"Configurable\",\"bone\":\"Spine\",\"connectedBodyName\":\"Hips\"}]}";
+        string json = await _service.CreatePhysicsSetupAsync(proj, "Assets/Physics/HumanoidRagdoll.physics.json", physicsJson);
+
+        Assert.That(json, Does.Contain("\"success\":true"));
+        Assert.That(json, Does.Contain("path"));
+
+        string assetPath = _mockFs.Path.Combine(proj, "Assets", "Physics", "HumanoidRagdoll.physics.json");
+        Assert.That(_mockFs.File.Exists(assetPath), Is.True);
+        Assert.That(_mockFs.File.Exists(assetPath + ".meta"), Is.True);
+        string content = _mockFs.File.ReadAllText(assetPath);
+        Assert.That(content, Does.Contain("HumanoidRagdoll"));
+        Assert.That(content, Does.Contain("Hips"));
+        Assert.That(content, Does.Contain("Spine"));
+    }
+
+    [Test]
+    public async Task CreatePhysicsSetupAsync_InvalidJson_ReturnsValidationError()
+    {
+        string proj = await _service.ScaffoldProjectAsync("PhysicsInvalidJson", @"C:\output");
+        string json = await _service.CreatePhysicsSetupAsync(proj, "Assets/Physics/Invalid.physics.json", "{ invalid }");
+
+        Assert.That(json, Does.Contain("\"success\":false"));
+        Assert.That(json, Does.Contain("PhysicsSetup.InvalidJson"));
+    }
+
+    [Test]
+    public async Task CreatePhysicsSetupAsync_InvalidReferences_ReturnsValidationErrors()
+    {
+        string proj = await _service.ScaffoldProjectAsync("PhysicsInvalidRefs", @"C:\output");
+        const string physicsJson = "{\"name\":\"HumanoidRagdoll\",\"bones\":[{\"name\":\"Hips\",\"colliderType\":\"Capsule\",\"mass\":10.0}],\"joints\":[{\"name\":\"BadJoint\",\"type\":\"Hinge\",\"bone\":\"Spine\",\"connectedBodyName\":\"Head\"}]}";
+        string json = await _service.CreatePhysicsSetupAsync(proj, "Assets/Physics/HumanoidRagdoll.physics.json", physicsJson);
+
+        Assert.That(json, Does.Contain("\"success\":false"));
+        Assert.That(json, Does.Contain("PhysicsSetup.InvalidReference"));
+        Assert.That(json, Does.Contain("Spine"));
+        Assert.That(json, Does.Contain("Head"));
+    }
+
+    // ---- VFX / particles (Phase 3) ----
+
+    [Test]
+    public async Task CreateVfxAssetAsync_ValidDefinition_WritesAssetAndReturnsSuccess()
+    {
+        string proj = await _service.ScaffoldProjectAsync("Vfx", @"C:\output");
+        const string vfxJson = "{\"name\":\"ExplosionSmall\",\"duration\":1.0,\"looping\":false,\"startLifetime\":0.5,\"startSpeed\":5.0,\"startSize\":1.0,\"startColor\":{\"r\":1,\"g\":0.6,\"b\":0.1,\"a\":1},\"emission\":{\"rateOverTime\":0,\"bursts\":[{\"time\":0.0,\"count\":50}]},\"shape\":{\"type\":\"Sphere\",\"radius\":0.5}}";
+        string json = await _service.CreateVfxAssetAsync(proj, "Assets/VFX/ExplosionSmall.vfx.json", vfxJson);
+
+        Assert.That(json, Does.Contain("\"success\":true"));
+        Assert.That(json, Does.Contain("ExplosionSmall"));
+
+        string assetPath = _mockFs.Path.Combine(proj, "Assets", "VFX", "ExplosionSmall.vfx.json");
+        Assert.That(_mockFs.File.Exists(assetPath), Is.True);
+        Assert.That(_mockFs.File.Exists(assetPath + ".meta"), Is.True);
+        string content = _mockFs.File.ReadAllText(assetPath);
+        Assert.That(content, Does.Contain("ExplosionSmall"));
+        Assert.That(content, Does.Contain("\"duration\": 1"));
+    }
+
+    [Test]
+    public async Task CreateVfxAssetAsync_InvalidJson_ReturnsValidationError()
+    {
+        string proj = await _service.ScaffoldProjectAsync("VfxInvalidJson", @"C:\output");
+        string json = await _service.CreateVfxAssetAsync(proj, "Assets/VFX/Bad.vfx.json", "{ invalid json }");
+
+        Assert.That(json, Does.Contain("\"success\":false"));
+        Assert.That(json, Does.Contain("Vfx.InvalidJson"));
+    }
+
+    [Test]
+    public async Task CreateVfxAssetAsync_InvalidParameters_ReturnsValidationErrors()
+    {
+        string proj = await _service.ScaffoldProjectAsync("VfxInvalidParams", @"C:\output");
+        const string vfxJson = "{\"name\":\"ExplosionBad\",\"duration\":-1.0,\"looping\":false,\"startLifetime\":-0.5,\"startSpeed\":-5.0,\"startSize\":-1.0,\"startColor\":{\"r\":1,\"g\":0.6,\"b\":0.1,\"a\":1},\"emission\":{\"rateOverTime\":-1,\"bursts\":[{\"time\":-0.1,\"count\":-10}]},\"shape\":{\"type\":\"Sphere\",\"radius\":0.5}}";
+        string json = await _service.CreateVfxAssetAsync(proj, "Assets/VFX/ExplosionBad.vfx.json", vfxJson);
+
+        Assert.That(json, Does.Contain("\"success\":false"));
+        Assert.That(json, Does.Contain("Vfx.InvalidParameters"));
+        Assert.That(json, Does.Contain("validation failed"));
     }
 
     /// <summary>

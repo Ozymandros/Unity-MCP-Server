@@ -532,6 +532,82 @@ public static class UnityTools
     }
 
     // -----------------------------------------------------------------------
+    // Advanced Animation & Timelines (Phase 3)
+    // -----------------------------------------------------------------------
+
+    [McpServerTool(Name = "unity_create_advanced_animator"), Description(
+        "Creates an advanced Animator definition (multi-layer, sub-state machines, blend trees) as a JSON surrogate. " +
+        "See advanced Phase 3 animation contracts. Returns JSON: success, path, message, errors.")]
+    public static async Task<string> CreateAdvancedAnimator(
+        IUnityService unityService,
+        [Description("Project root path")]
+        string projectPath,
+        [Description("Advanced animator asset path, e.g. Assets/Animations/CharacterAdvanced.animator.json")]
+        string fileName,
+        [Description("Advanced animator JSON (layers, state machines, blend trees)")]
+        string animatorJson,
+        CancellationToken cancellationToken = default)
+    {
+        return await unityService.CreateAdvancedAnimatorAsync(projectPath, fileName, animatorJson, cancellationToken);
+    }
+
+    [McpServerTool(Name = "unity_create_timeline"), Description(
+        "Creates a Timeline definition asset from JSON (tracks and clips). " +
+        "Returns JSON: success, path, message, errors, warnings.")]
+    public static async Task<string> CreateTimeline(
+        IUnityService unityService,
+        [Description("Project root path")]
+        string projectPath,
+        [Description("Timeline asset path, e.g. Assets/Timelines/IntroCutscene.timeline.json")]
+        string fileName,
+        [Description("Timeline JSON (TimelineDefinition schema)")]
+        string timelineJson,
+        CancellationToken cancellationToken = default)
+    {
+        return await unityService.CreateTimelineAsync(projectPath, fileName, timelineJson, cancellationToken);
+    }
+
+    // -----------------------------------------------------------------------
+    // Advanced Physics (Phase 3)
+    // -----------------------------------------------------------------------
+
+    [McpServerTool(Name = "unity_create_physics_setup"), Description(
+        "Creates a physics setup asset (ragdoll/joint rig) from JSON. " +
+        "See PhysicsContracts.RagdollSetupContract. Returns JSON: success, path, message, errors.")]
+    public static async Task<string> CreatePhysicsSetup(
+        IUnityService unityService,
+        [Description("Project root path")]
+        string projectPath,
+        [Description("Physics asset path, e.g. Assets/Physics/HumanoidRagdoll.physics.json")]
+        string fileName,
+        [Description("Physics setup JSON (RagdollSetupContract schema)")]
+        string physicsJson,
+        CancellationToken cancellationToken = default)
+    {
+        return await unityService.CreatePhysicsSetupAsync(projectPath, fileName, physicsJson, cancellationToken);
+    }
+
+    // -----------------------------------------------------------------------
+    // VFX / particles (Phase 3)
+    // -----------------------------------------------------------------------
+
+    [McpServerTool(Name = "unity_create_vfx_asset"), Description(
+        "Creates a particle VFX asset from JSON (ParticleEffectContract schema). " +
+        "Returns JSON: success, path, message, errors (validation failures use Vfx.InvalidJson / Vfx.InvalidParameters codes).")]
+    public static async Task<string> CreateVfxAsset(
+        IUnityService unityService,
+        [Description("Project root path")]
+        string projectPath,
+        [Description("VFX asset path, e.g. Assets/VFX/ExplosionSmall.vfx.json")]
+        string fileName,
+        [Description("VFX JSON (ParticleEffectContract schema: name, duration, looping, startLifetime/Speed/Size, startColor, emission, shape)")]
+        string vfxJson,
+        CancellationToken cancellationToken = default)
+    {
+        return await unityService.CreateVfxAssetAsync(projectPath, fileName, vfxJson, cancellationToken);
+    }
+
+    // -----------------------------------------------------------------------
     // Orchestration recipe (Phase 1 core recipe)
     // -----------------------------------------------------------------------
 

@@ -22,9 +22,9 @@ The emphasis is on:
 - Sub-state machines for locomotion, combat, etc.
 - Timeline sequences for cutscenes / scripted events.
 
-### 1.2 Planned JSON Contracts
+### 1.2 JSON Contracts (implemented)
 
-Contracts will be added under `UnityMcp.Core.Contracts.AnimationContracts` and build on
+Contracts live under `UnityMcp.Core.Contracts.AnimationContracts` and build on
 the Phase 2 basic animator schema:
 
 - `AnimatorLayerContract`
@@ -32,6 +32,8 @@ the Phase 2 basic animator schema:
 - `AnimatorBlendTreeContract`
 - `TimelineTrackContract`
 - `TimelineClipContract`
+
+These contracts are **Unity-agnostic JSON surrogates**: they are structured to map cleanly to Unity Animator Controllers and Timelines in the future, but in Phase 3 the server writes **`.json` assets plus `.meta` files**, not native `.controller` or Timeline assets.
 
 Example (simplified):
 
@@ -80,24 +82,21 @@ Timelines:
 }
 ```
 
-### 1.3 Planned MCP Tools
+### 1.3 MCP Tools (implemented)
 
-- `unity_create_advanced_animator`
-  - Parameters:
-    - `projectPath`
-    - `fileName`
-    - `animatorJson`
-  - Behavior:
-    - Generates a multi-layer Animator Controller from the advanced schema.
-    - Can optionally migrate a basic animator (Phase 2) to the advanced form.
+- **`unity_create_advanced_animator`**
+  - Parameters: `projectPath`, `fileName` (e.g. `Assets/Animations/CharacterAdvanced.animator.json`), `animatorJson`.
+  - Implementation: `IUnityService.CreateAdvancedAnimatorAsync` in `FileUnityService` validates the JSON against the advanced schema
+    (layers with valid defaultState) and writes a JSON surrogate asset plus `.meta`.
+  - Result JSON: `{ success, path, message, errors[] }`, with validation failures using codes such as `AdvancedAnimator.InvalidJson` and
+    `AdvancedAnimator.InvalidLayer`.
 
-- `unity_create_timeline`
-  - Parameters:
-    - `projectPath`
-    - `fileName`
-    - `timelineJson`
-  - Behavior:
-    - Generates a Timeline asset with animation and audio tracks.
+- **`unity_create_timeline`**
+  - Parameters: `projectPath`, `fileName` (e.g. `Assets/Timelines/IntroCutscene.timeline.json`), `timelineJson`.
+  - Implementation: `IUnityService.CreateTimelineAsync` deserializes to `TimelineDefinition`, validates referenced animation/audio clip paths and
+    writes a JSON surrogate asset plus `.meta`.
+  - Result JSON: `{ success, path, message, errors[], warnings[] }`, with parse failures using `Timeline.InvalidJson` and missing assets reported
+    as `Timeline.MissingClip` / `Timeline.MissingAudio` warnings.
 
 ---
 
@@ -112,7 +111,7 @@ Timelines:
   - Magic/energy effects
 - Target built-in Particle System first; VFX Graph may be added later.
 
-### 2.2 Planned JSON Contracts
+### 2.2 JSON Contracts (implemented)
 
 Contracts under `UnityMcp.Core.Contracts.VfxContracts`:
 
@@ -145,15 +144,24 @@ Example:
 }
 ```
 
-### 2.3 Planned MCP Tool
+### 2.3 MCP Tool (implemented)
 
-- `unity_create_vfx_asset`
+- **`unity_create_vfx_asset`**
   - Parameters:
     - `projectPath`
-    - `fileName`
-    - `vfxJson`
-  - Behavior:
-    - Generates a prefab or particle system asset configured from the contract.
+    - `fileName` (e.g. `Assets/VFX/ExplosionSmall.vfx.json`)
+    - `vfxJson` (JSON matching `ParticleEffectContract`)
+  - Implementation:
+    - `IUnityService.CreateVfxAssetAsync` in `FileUnityService` deserializes `vfxJson` into `ParticleEffectContract`, performs basic semantic checks (non‑negative duration, valid burst counts, etc.), and writes a **JSON surrogate asset** plus `.meta`.
+  - Result JSON:
+    - Uses the `ImportValidationResult` pattern from `ToolContracts`:
+      - `success: true | false`
+      - `path`: project‑relative path to the generated `.vfx.json` asset (when created).
+      - `message`: high‑level outcome summary.
+      - `errors`: array of `UnityMcpError`.
+    - Typical error codes:
+      - `Vfx.InvalidJson` (category: `Validation`) when the payload cannot be parsed.
+      - `Vfx.InvalidParameters` (category: `Validation`) for semantic issues such as negative durations or invalid emission settings.
 
 ---
 
@@ -164,7 +172,7 @@ Example:
 - Pre-configured ragdoll setups for humanoid characters.
 - Joint and constraint rigs for vehicles, doors, and mechanical objects.
 
-### 3.2 Planned JSON Contracts
+### 3.2 JSON Contracts (implemented)
 
 Contracts under `UnityMcp.Core.Contracts.PhysicsContracts`:
 
@@ -184,27 +192,35 @@ Example:
 }
 ```
 
-### 3.3 Planned MCP Tool
+### 3.3 MCP Tool (implemented)
 
-- `unity_create_physics_setup`
+- **`unity_create_physics_setup`**
   - Parameters:
     - `projectPath`
-    - `fileName`
-    - `physicsJson`
-  - Behavior:
-    - Generates prefab(s) and/or components for ragdolls and joint rigs based on the JSON.
+    - `fileName` (e.g. `Assets/Physics/HumanoidRagdoll.physics.json`)
+    - `physicsJson` (JSON matching `RagdollSetupContract`)
+  - Implementation:
+    - `IUnityService.CreatePhysicsSetupAsync` in `FileUnityService` deserializes `physicsJson` into `RagdollSetupContract`, validates that bones and joints reference valid names, and writes a **JSON surrogate asset** plus `.meta`.
+  - Result JSON:
+    - Follows the same `ImportValidationResult`‑style shape used by other Phase 3 tools:
+      - `success: true | false`
+      - `path`: project‑relative path to the generated `.physics.json` asset (when created).
+      - `message`: high‑level outcome summary.
+      - `errors`: array of `UnityMcpError`.
+    - Typical error codes:
+      - `PhysicsSetup.InvalidJson` (category: `Validation`) when the payload cannot be parsed.
+      - `PhysicsSetup.InvalidReference` (category: `Validation`) when joints or bones reference non‑existent names.
 
 ---
 
 ## 4. Testing and Compatibility
 
 - All advanced systems rely on:
-  - Golden YAML fixtures for complex assets.
-  - Cross-version tests across at least two Unity LTS versions.
+  - The shared `UnityMcpErrorCategory` / `UnityMcpError` taxonomy.
+  - `ImportValidationResult`‑style envelopes for multi‑error responses (advanced animator, VFX, physics, timelines where applicable).
 - Tools must:
-  - Reuse the error taxonomy (`UnityMcpErrorCategory`) and error result patterns.
-  - Prefer additive contracts; breaking changes should introduce new tool versions.
+  - Preserve **additive contracts** so that existing clients depending on Phase 2 navigation/input/animation continue to work.
+  - Keep JSON schemas stable so future Unity‑native asset generation can reuse the same contracts and MCP tool names.
 
-This outline satisfies the Phase 3 planning requirement by defining the target
-capabilities, contract families, and MCP tools for advanced animation, VFX, and physics.
+This document now reflects the **implemented** Phase 3 behavior: JSON‑level contracts, surrogate asset generation under `Assets/…/*.json`, and consistent result shapes and error codes for advanced animation, VFX, and physics tools.
 

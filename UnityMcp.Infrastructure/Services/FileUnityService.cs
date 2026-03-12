@@ -32,6 +32,12 @@ public class FileUnityService : IUnityService
         PropertyNameCaseInsensitive = true,
     };
 
+    // Helper type for advanced animator root (layers collection).
+    private sealed class AdvancedAnimatorWrapper
+    {
+        public IReadOnlyList<AnimatorLayerContract> Layers { get; init; } = new List<AnimatorLayerContract>();
+    }
+
     public FileUnityService(ILogger<FileUnityService> logger, IProcessRunner processRunner, IFileSystem? fileSystem = null)
     {
         _logger = logger;
@@ -1381,6 +1387,437 @@ public class {scriptName} : MonoBehaviour
             return JsonSerializer.Serialize(new { success = true, path = relativePath, message = result.Message, errors = Array.Empty<UnityMcpError>(), warnings });
         }
         return JsonSerializer.Serialize(new { success = true, path = relativePath, message = "Animator definition created successfully.", errors = Array.Empty<UnityMcpError>(), warnings = Array.Empty<UnityMcpError>() });
+    }
+
+    /// <summary>
+    /// Creates an advanced Animator definition asset (multi-layer, sub-state machines, blend trees).
+    /// For Phase 3, this is a JSON surrogate; Unity-native controller generation can be added later.
+    /// </summary>
+    public async Task<string> CreateAdvancedAnimatorAsync(string projectPath, string fileName, string animatorJson, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(projectPath))
+            throw new ArgumentException("Project path is required.", nameof(projectPath));
+        if (string.IsNullOrWhiteSpace(fileName))
+            throw new ArgumentException("File name is required.", nameof(fileName));
+        if (string.IsNullOrWhiteSpace(animatorJson))
+            throw new ArgumentException("Animator JSON is required.", nameof(animatorJson));
+
+        AdvancedAnimatorWrapper wrapper;
+        try
+        {
+            wrapper = JsonSerializer.Deserialize<AdvancedAnimatorWrapper>(animatorJson, JsonOpts)
+                      ?? throw new InvalidOperationException("Deserialized advanced animator wrapper was null.");
+        }
+        catch (Exception ex)
+        {
+            var error = new UnityMcpError
+            {
+                Category = UnityMcpErrorCategory.Validation,
+                Code = "AdvancedAnimator.InvalidJson",
+                Message = $"Failed to parse advanced animator definition: {ex.Message}",
+            };
+            var result = new ImportValidationResult
+            {
+                Success = false,
+                ErrorCount = 1,
+                WarningCount = 0,
+                Errors = new[] { error },
+                Warnings = Array.Empty<UnityMcpError>(),
+                Message = "Advanced animator JSON could not be parsed.",
+            };
+            return JsonSerializer.Serialize(result);
+        }
+
+        var errors = new List<UnityMcpError>();
+        foreach (var layer in wrapper.Layers)
+        {
+            bool hasDefault = layer.States.Any(s => s.Name == layer.DefaultState);
+            hasDefault |= layer.SubStateMachines.Any(sm => sm.Name == layer.DefaultState);
+            if (!hasDefault)
+            {
+                errors.Add(new UnityMcpError
+                {
+                    Category = UnityMcpErrorCategory.Validation,
+                    Code = "AdvancedAnimator.InvalidLayer",
+                    Message = $"Layer '{layer.Name}' has defaultState '{layer.DefaultState}' which does not match any state or sub-state machine.",
+                });
+            }
+        }
+
+        if (errors.Count > 0)
+        {
+            var fail = new ImportValidationResult
+            {
+                Success = false,
+                ErrorCount = errors.Count,
+                WarningCount = 0,
+                Errors = errors,
+                Warnings = Array.Empty<UnityMcpError>(),
+                Message = "Advanced animator validation failed.",
+            };
+            return JsonSerializer.Serialize(fail);
+        }
+
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        EnsureDirectoryExists(resolvedPath);
+
+        // Persist original JSON as the authoritative surrogate.
+        await _fs.File.WriteAllTextAsync(resolvedPath, animatorJson, cancellationToken);
+        await _metaWriter.WriteDefaultMetaAsync(resolvedPath, ct: cancellationToken);
+
+        string relativePath = MakeProjectRelativePath(projectPath, resolvedPath);
+        return JsonSerializer.Serialize(new { success = true, path = relativePath, message = "Advanced animator definition created successfully.", errors = Array.Empty<UnityMcpError>() });
+    }
+
+    /// <summary>
+    /// Creates a Timeline definition asset (JSON surrogate). Validates referenced clip/audio paths optionally.
+    /// </summary>
+    public async Task<string> CreateTimelineAsync(string projectPath, string fileName, string timelineJson, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(projectPath))
+            throw new ArgumentException("Project path is required.", nameof(projectPath));
+        if (string.IsNullOrWhiteSpace(fileName))
+            throw new ArgumentException("File name is required.", nameof(fileName));
+        if (string.IsNullOrWhiteSpace(timelineJson))
+            throw new ArgumentException("Timeline JSON is required.", nameof(timelineJson));
+
+        TimelineDefinition def;
+        try
+        {
+            def = JsonSerializer.Deserialize<TimelineDefinition>(timelineJson, JsonOpts)
+                  ?? throw new InvalidOperationException("Deserialized TimelineDefinition was null.");
+        }
+        catch (Exception ex)
+        {
+            var error = new UnityMcpError
+            {
+                Category = UnityMcpErrorCategory.Validation,
+                Code = "Timeline.InvalidJson",
+                Message = $"Failed to parse timeline definition: {ex.Message}",
+            };
+            var result = new ImportValidationResult
+            {
+                Success = false,
+                ErrorCount = 1,
+                WarningCount = 0,
+                Errors = new[] { error },
+                Warnings = Array.Empty<UnityMcpError>(),
+                Message = "Timeline JSON could not be parsed.",
+            };
+            return JsonSerializer.Serialize(result);
+        }
+
+        var warnings = new List<UnityMcpError>();
+        foreach (var track in def.Tracks)
+        {
+            foreach (var clip in track.Clips)
+            {
+                if (!string.IsNullOrWhiteSpace(clip.Clip))
+                {
+                    string clipPath = ResolvePath(projectPath, clip.Clip.Trim());
+                    if (!_fs.File.Exists(clipPath))
+                    {
+                        warnings.Add(new UnityMcpError
+                        {
+                            Category = UnityMcpErrorCategory.Validation,
+                            Code = "Timeline.MissingClip",
+                            Message = $"Timeline '{def.Name}' references missing animation clip: {clip.Clip}",
+                        });
+                    }
+                }
+                if (!string.IsNullOrWhiteSpace(clip.Audio))
+                {
+                    string audioPath = ResolvePath(projectPath, clip.Audio.Trim());
+                    if (!_fs.File.Exists(audioPath))
+                    {
+                        warnings.Add(new UnityMcpError
+                        {
+                            Category = UnityMcpErrorCategory.Validation,
+                            Code = "Timeline.MissingAudio",
+                            Message = $"Timeline '{def.Name}' references missing audio clip: {clip.Audio}",
+                        });
+                    }
+                }
+            }
+        }
+
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        EnsureDirectoryExists(resolvedPath);
+
+        string jsonToWrite = JsonSerializer.Serialize(def, new JsonSerializerOptions { WriteIndented = true });
+        await _fs.File.WriteAllTextAsync(resolvedPath, jsonToWrite, cancellationToken);
+        await _metaWriter.WriteDefaultMetaAsync(resolvedPath, ct: cancellationToken);
+
+        string relPath = MakeProjectRelativePath(projectPath, resolvedPath);
+        if (warnings.Count > 0)
+        {
+            var result = new ImportValidationResult
+            {
+                Success = true,
+                ErrorCount = 0,
+                WarningCount = warnings.Count,
+                Errors = Array.Empty<UnityMcpError>(),
+                Warnings = warnings,
+                Message = "Timeline created; some referenced clips are missing.",
+            };
+            return JsonSerializer.Serialize(new { success = true, path = relPath, message = result.Message, errors = Array.Empty<UnityMcpError>(), warnings });
+        }
+
+        return JsonSerializer.Serialize(new { success = true, path = relPath, message = "Timeline created successfully.", errors = Array.Empty<UnityMcpError>(), warnings = Array.Empty<UnityMcpError>() });
+    }
+
+    // -----------------------------------------------------------------------
+    // Advanced Physics (Phase 3)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Creates a physics setup (ragdoll/joints) asset (JSON surrogate). Validates that joints reference existing bones.
+    /// </summary>
+    public async Task<string> CreatePhysicsSetupAsync(string projectPath, string fileName, string physicsJson, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(projectPath))
+            throw new ArgumentException("Project path is required.", nameof(projectPath));
+        if (string.IsNullOrWhiteSpace(fileName))
+            throw new ArgumentException("File name is required.", nameof(fileName));
+        if (string.IsNullOrWhiteSpace(physicsJson))
+            throw new ArgumentException("Physics JSON is required.", nameof(physicsJson));
+
+        RagdollSetupContract setup;
+        try
+        {
+            setup = JsonSerializer.Deserialize<RagdollSetupContract>(physicsJson, JsonOpts)
+                    ?? throw new InvalidOperationException("Deserialized RagdollSetupContract was null.");
+        }
+        catch (Exception ex)
+        {
+            var error = new UnityMcpError
+            {
+                Category = UnityMcpErrorCategory.Validation,
+                Code = "PhysicsSetup.InvalidJson",
+                Message = $"Failed to parse physics setup: {ex.Message}",
+            };
+
+            var validationResult = new ImportValidationResult
+            {
+                Success = false,
+                ErrorCount = 1,
+                WarningCount = 0,
+                Errors = new[] { error },
+                Warnings = Array.Empty<UnityMcpError>(),
+                Message = "Physics setup JSON could not be parsed.",
+            };
+
+            return JsonSerializer.Serialize(validationResult);
+        }
+
+        var boneNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var bone in setup.Bones)
+        {
+            if (string.IsNullOrWhiteSpace(bone.Name))
+                continue;
+            boneNames.Add(bone.Name.Trim());
+        }
+
+        var errors = new List<UnityMcpError>();
+        foreach (var joint in setup.Joints)
+        {
+            if (!string.IsNullOrWhiteSpace(joint.Bone) && !boneNames.Contains(joint.Bone.Trim()))
+            {
+                errors.Add(new UnityMcpError
+                {
+                    Category = UnityMcpErrorCategory.Validation,
+                    Code = "PhysicsSetup.InvalidReference",
+                    Message = $"Joint '{joint.Name}' references missing bone '{joint.Bone}'.",
+                });
+            }
+
+            if (!string.IsNullOrWhiteSpace(joint.ConnectedBodyName) && !boneNames.Contains(joint.ConnectedBodyName.Trim()))
+            {
+                errors.Add(new UnityMcpError
+                {
+                    Category = UnityMcpErrorCategory.Validation,
+                    Code = "PhysicsSetup.InvalidReference",
+                    Message = $"Joint '{joint.Name}' references missing connected body '{joint.ConnectedBodyName}'.",
+                });
+            }
+        }
+
+        if (errors.Count > 0)
+        {
+            var fail = new ImportValidationResult
+            {
+                Success = false,
+                ErrorCount = errors.Count,
+                WarningCount = 0,
+                Errors = errors,
+                Warnings = Array.Empty<UnityMcpError>(),
+                Message = "Physics setup validation failed.",
+            };
+
+            return JsonSerializer.Serialize(fail);
+        }
+
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        EnsureDirectoryExists(resolvedPath);
+
+        string jsonToWrite = JsonSerializer.Serialize(setup, new JsonSerializerOptions { WriteIndented = true });
+        await _fs.File.WriteAllTextAsync(resolvedPath, jsonToWrite, cancellationToken);
+        await _metaWriter.WriteDefaultMetaAsync(resolvedPath, ct: cancellationToken);
+
+        string relativePath = MakeProjectRelativePath(projectPath, resolvedPath);
+        return JsonSerializer.Serialize(new { success = true, path = relativePath, message = "Physics setup created successfully.", errors = Array.Empty<UnityMcpError>() });
+    }
+
+    // -----------------------------------------------------------------------
+    // VFX / particles (Phase 3)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Creates a VFX particle asset from a ParticleEffectContract JSON definition.
+    /// Performs basic semantic validation and writes a JSON surrogate asset plus .meta.
+    /// </summary>
+    public async Task<string> CreateVfxAssetAsync(string projectPath, string fileName, string vfxJson, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(projectPath))
+            throw new ArgumentException("Project path is required.", nameof(projectPath));
+        if (string.IsNullOrWhiteSpace(fileName))
+            throw new ArgumentException("File name is required.", nameof(fileName));
+        if (string.IsNullOrWhiteSpace(vfxJson))
+            throw new ArgumentException("VFX JSON is required.", nameof(vfxJson));
+
+        ParticleEffectContract effect;
+        try
+        {
+            effect = JsonSerializer.Deserialize<ParticleEffectContract>(vfxJson, JsonOpts)
+                     ?? throw new InvalidOperationException("Deserialized ParticleEffectContract was null.");
+        }
+        catch (Exception ex)
+        {
+            var error = new UnityMcpError
+            {
+                Category = UnityMcpErrorCategory.Validation,
+                Code = "Vfx.InvalidJson",
+                Message = $"Failed to parse VFX definition: {ex.Message}",
+            };
+            var result = new ImportValidationResult
+            {
+                Success = false,
+                ErrorCount = 1,
+                WarningCount = 0,
+                Errors = new[] { error },
+                Warnings = Array.Empty<UnityMcpError>(),
+                Message = "VFX JSON could not be parsed.",
+            };
+            return JsonSerializer.Serialize(result);
+        }
+
+        var errors = new List<UnityMcpError>();
+
+        if (effect.Duration < 0)
+        {
+            errors.Add(new UnityMcpError
+            {
+                Category = UnityMcpErrorCategory.Validation,
+                Code = "Vfx.InvalidParameters",
+                Message = "Duration must be non-negative.",
+            });
+        }
+
+        if (effect.StartLifetime < 0)
+        {
+            errors.Add(new UnityMcpError
+            {
+                Category = UnityMcpErrorCategory.Validation,
+                Code = "Vfx.InvalidParameters",
+                Message = "StartLifetime must be non-negative.",
+            });
+        }
+
+        if (effect.StartSpeed < 0)
+        {
+            errors.Add(new UnityMcpError
+            {
+                Category = UnityMcpErrorCategory.Validation,
+                Code = "Vfx.InvalidParameters",
+                Message = "StartSpeed must be non-negative.",
+            });
+        }
+
+        if (effect.StartSize < 0)
+        {
+            errors.Add(new UnityMcpError
+            {
+                Category = UnityMcpErrorCategory.Validation,
+                Code = "Vfx.InvalidParameters",
+                Message = "StartSize must be non-negative.",
+            });
+        }
+
+        if (effect.Emission is not null)
+        {
+            if (effect.Emission.RateOverTime < 0)
+            {
+                errors.Add(new UnityMcpError
+                {
+                    Category = UnityMcpErrorCategory.Validation,
+                    Code = "Vfx.InvalidParameters",
+                    Message = "Emission.rateOverTime must be non-negative.",
+                });
+            }
+
+            foreach (var burst in effect.Emission.Bursts)
+            {
+                if (burst.Time < 0)
+                {
+                    errors.Add(new UnityMcpError
+                    {
+                        Category = UnityMcpErrorCategory.Validation,
+                        Code = "Vfx.InvalidParameters",
+                        Message = "Burst time must be non-negative.",
+                    });
+                }
+
+                if (burst.Count < 0)
+                {
+                    errors.Add(new UnityMcpError
+                    {
+                        Category = UnityMcpErrorCategory.Validation,
+                        Code = "Vfx.InvalidParameters",
+                        Message = "Burst count must be non-negative.",
+                    });
+                }
+            }
+        }
+
+        if (errors.Count > 0)
+        {
+            var validationResult = new ImportValidationResult
+            {
+                Success = false,
+                ErrorCount = errors.Count,
+                WarningCount = 0,
+                Errors = errors,
+                Warnings = Array.Empty<UnityMcpError>(),
+                Message = "VFX definition validation failed.",
+            };
+            return JsonSerializer.Serialize(validationResult);
+        }
+
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        EnsureDirectoryExists(resolvedPath);
+
+        string jsonToWrite = JsonSerializer.Serialize(effect, new JsonSerializerOptions { WriteIndented = true });
+        await _fs.File.WriteAllTextAsync(resolvedPath, jsonToWrite, cancellationToken);
+        await _metaWriter.WriteDefaultMetaAsync(resolvedPath, ct: cancellationToken);
+
+        string relativePath = MakeProjectRelativePath(projectPath, resolvedPath);
+        return JsonSerializer.Serialize(new
+        {
+            success = true,
+            path = relativePath,
+            message = "VFX asset created successfully.",
+            errors = Array.Empty<UnityMcpError>(),
+        });
     }
 
     /// <summary>

@@ -219,4 +219,41 @@ public interface IUnityService
     /// Returns JSON: success, path, message, optional errors/warnings.
     /// </summary>
     Task<string> CreateBasicAnimatorAsync(string projectPath, string fileName, string animatorJson, CancellationToken cancellationToken = default);
+
+    // -----------------------------------------------------------------------
+    // Advanced Animation & Timelines (Phase 3)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Creates an advanced Animator definition asset (multi-layer, sub-state machines, blend trees).
+    /// Returns JSON: success, path, message, errors.
+    /// </summary>
+    Task<string> CreateAdvancedAnimatorAsync(string projectPath, string fileName, string animatorJson, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a Timeline definition asset from timelineJson (TimelineDefinition schema).
+    /// Returns JSON: success, path, message, errors, warnings.
+    /// </summary>
+    Task<string> CreateTimelineAsync(string projectPath, string fileName, string timelineJson, CancellationToken cancellationToken = default);
+
+    // -----------------------------------------------------------------------
+    // VFX / particles (Phase 3)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Creates a VFX particle asset from vfxJson (ParticleEffectContract schema).
+    /// Returns JSON: success, path, message, errors. Validation failures use ImportValidationResult-style payloads
+    /// with codes such as Vfx.InvalidJson and Vfx.InvalidParameters.
+    /// </summary>
+    Task<string> CreateVfxAssetAsync(string projectPath, string fileName, string vfxJson, CancellationToken cancellationToken = default);
+
+    // -----------------------------------------------------------------------
+    // Advanced Physics (Phase 3)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Creates a physics setup (ragdoll/joints) asset from physicsJson (RagdollSetupContract schema).
+    /// Returns JSON: success, path, message, errors.
+    /// </summary>
+    Task<string> CreatePhysicsSetupAsync(string projectPath, string fileName, string physicsJson, CancellationToken cancellationToken = default);
 }

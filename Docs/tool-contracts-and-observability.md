@@ -296,3 +296,116 @@ Phase 2 tools return JSON with a consistent pattern:
 
 Input and animation validation failures may use the same `ImportValidationResult` shape (`error_count`, `warning_count`, `errors`, `warnings`) for consistency. Full schemas and tool parameters are in [Navigation, Input, Animation (Phase 2)](navigation-input-animation-phase2.md).
 
+---
+
+## 8. Phase 3 tool result shapes (Advanced Animation, VFX, Physics)
+
+Phase 3 extends the same patterns to **advanced animation**, **VFX/particles**, and **advanced physics** tools. These tools all operate on **JSON surrogate assets** (e.g. `.animator.json`, `.timeline.json`, `.vfx.json`, `.physics.json`) and reuse the shared error taxonomy.
+
+### 8.1 Advanced animation tools
+
+**Tools**
+
+- `unity_create_advanced_animator` → `IUnityService.CreateAdvancedAnimatorAsync`
+- `unity_create_timeline` → `IUnityService.CreateTimelineAsync`
+
+**Common patterns**
+
+- On success:
+  - `success: true`
+  - `path`: project-relative path to the generated JSON surrogate asset.
+  - `message`: optional success message.
+  - `errors: []`
+- On validation / parse failure:
+  - `success: false`
+  - `path`: optional (may be omitted if no asset is written).
+  - `message`: summary of the failure.
+  - `errors`: array of `UnityMcpError` with Phase 3-specific `code` values.
+
+**Advanced animator**
+
+- Uses an `ImportValidationResult`-style envelope when multiple structural issues are possible (e.g. invalid layers, inconsistent blend trees).
+- Typical error codes:
+  - `AdvancedAnimator.InvalidJson` (category: `Validation`) when `animatorJson` cannot be parsed.
+  - `AdvancedAnimator.InvalidLayer` (category: `Validation`) when a layer’s `defaultState` is missing or references an unknown state/sub-state machine.
+
+**Timelines**
+
+- Result JSON:
+
+  ```json
+  {
+    "success": true,
+    "path": "Assets/Timelines/IntroCutscene.timeline.json",
+    "message": "Timeline created.",
+    "errors": [],
+    "warnings": []
+  }
+  ```
+
+- Typical codes:
+  - `Timeline.InvalidJson` (category: `Validation`) when `timelineJson` cannot be parsed.
+  - `Timeline.MissingClip`, `Timeline.MissingAudio` (usually emitted as `warnings` when referenced assets are not found under `Assets` but the timeline is still created).
+
+For full contract schemas, see [Phase 3: Advanced Animation, VFX, and Physics Systems](advanced-systems-phase3.md#1-advanced-animation).
+
+### 8.2 VFX / particles tool
+
+**Tool**
+
+- `unity_create_vfx_asset` → `IUnityService.CreateVfxAssetAsync`
+
+**Result envelope**
+
+- Follows the `ImportValidationResult` pattern:
+
+  ```json
+  {
+    "success": true,
+    "path": "Assets/VFX/ExplosionSmall.vfx.json",
+    "message": "VFX asset created.",
+    "errors": [],
+    "error_count": 0,
+    "warning_count": 0,
+    "warnings": []
+  }
+  ```
+
+- Typical error codes:
+  - `Vfx.InvalidJson` (category: `Validation`) when `vfxJson` cannot be parsed into `ParticleEffectContract`.
+  - `Vfx.InvalidParameters` (category: `Validation`) for semantic issues such as negative durations, invalid burst counts, or unsupported shapes.
+
+### 8.3 Physics setup tool
+
+**Tool**
+
+- `unity_create_physics_setup` → `IUnityService.CreatePhysicsSetupAsync`
+
+**Result envelope**
+
+- Also reuses the `ImportValidationResult`-style structure:
+
+  ```json
+  {
+    "success": false,
+    "path": null,
+    "message": "Joint references unknown bone(s).",
+    "errors": [
+      {
+        "category": "Validation",
+        "code": "PhysicsSetup.InvalidReference",
+        "message": "Joint 'SpineToHead' references unknown bone 'Head'."
+      }
+    ],
+    "error_count": 1,
+    "warning_count": 0,
+    "warnings": []
+  }
+  ```
+
+- Typical error codes:
+  - `PhysicsSetup.InvalidJson` (category: `Validation`) when `physicsJson` cannot be parsed into `RagdollSetupContract`.
+  - `PhysicsSetup.InvalidReference` (category: `Validation`) when joints or bones reference names that do not exist in the `bones` list.
+
+These Phase 3 result shapes are designed to be **additive** and **backwards compatible** with the Phase 0/2 patterns documented above, so existing clients that rely only on `success`, `path`, and `message` can ignore the richer `errors` / `warnings` details if desired.
+
