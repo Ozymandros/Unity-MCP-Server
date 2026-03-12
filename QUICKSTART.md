@@ -81,7 +81,7 @@ For IDEs that support MCP extensions, you can add it through the UI or settings 
 - **Args**: (keep empty)
 - **Env Vars**: `DOTNET_ENVIRONMENT=Development`
 
-*Note: If you didn't install it as a global tool, replace `unity-mcp` with `dotnet` and use `["run", "--project", "ABSOLUTE/PATH/TO/Unity-MCP-Server/UnityMcp.Server/UnityMCP.Server.csproj"]` in the args.*
+*Note: If you didn't install it as a global tool, replace `unity-mcp` with `dotnet` and use `["run", "--project", "ABSOLUTE/PATH/TO/Unity-MCP-Server/UnityMCP.Server/UnityMCP.Server.csproj"]` in the args.*
 
 ## 5. Try it out
 

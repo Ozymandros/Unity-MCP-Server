@@ -26,7 +26,7 @@ To install or update the Unity MCP Server as a global .NET tool:
   ```shell
   dotnet tool uninstall --global UnityMCP.Server
   dotnet build Unity-MCP-Server.sln --configuration Release
-  dotnet pack UnityMcp.Server/UnityMCP.Server.csproj -c Release -o nupkg
+  dotnet pack UnityMCP.Server/UnityMCP.Server.csproj -c Release -o nupkg
   dotnet tool update --global --add-source UnityMcp.Server/nupkg UnityMCP.Server
   ```
 

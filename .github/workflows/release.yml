@@ -40,7 +40,7 @@ jobs:
         run: dotnet restore Unity-MCP-Server.sln
 
       - name: Pack tool
-        run: dotnet pack UnityMcp.Server/UnityMCP.Server.csproj -c Release -o nupkg --no-restore
+        run: dotnet pack UnityMCP.Server/UnityMCP.Server.csproj -c Release -o nupkg --no-restore
 
       - name: Upload NuGet package
         uses: actions/upload-artifact@v4

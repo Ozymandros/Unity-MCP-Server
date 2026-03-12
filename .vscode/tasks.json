@@ -33,7 +33,7 @@
                 "watch",
                 "run",
                 "--project",
-                "${workspaceFolder}/UnityMcp.Server/UnityMcp.Server.csproj"
+                "${workspaceFolder}/UnityMCP.Server/UnityMCP.Server.csproj"
             ],
             "problemMatcher": "$msCompile"
         }

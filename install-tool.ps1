@@ -11,7 +11,7 @@
 # Equivalent manual commands:
 #   dotnet tool uninstall --global UnityMCP.Server
 #   dotnet build Unity-MCP-Server.sln --configuration Release
-#   dotnet pack UnityMcp.Server/UnityMCP.Server.csproj -c Release -o UnityMcp.Server/nupkg
+#   dotnet pack UnityMCP.Server/UnityMCP.Server.csproj -c Release -o UnityMcp.Server/nupkg
 #   dotnet tool update --global --add-source UnityMcp.Server/nupkg UnityMCP.Server
 #
 # To test the tool with Inspector:
@@ -31,14 +31,14 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # Use a relative path based on the script location and ensure directory exists
-$nupkgPath = Join-Path -Path $scriptRoot -ChildPath "UnityMcp.Server\nupkg"
+$nupkgPath = Join-Path -Path $scriptRoot -ChildPath "UnityMCP.Server\nupkg"
 if (-not (Test-Path $nupkgPath)) {
     New-Item -ItemType Directory -Path $nupkgPath | Out-Null
 }
 
 Write-Host "Packing UnityMcp.Server project in Release mode (output -> $nupkgPath)..." -ForegroundColor Cyan
 # Pack only the server project (PackageId: UnityMCP.Server, tool name: unity-mcp)
-dotnet pack (Join-Path $scriptRoot "UnityMcp.Server\UnityMCP.Server.csproj") -c Release -o $nupkgPath
+dotnet pack (Join-Path $scriptRoot "UnityMCP.Server\UnityMCP.Server.csproj") -c Release -o $nupkgPath
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Pack failed."
     exit 1

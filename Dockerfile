@@ -10,7 +10,7 @@ COPY Unity-MCP-Server.sln ./
 COPY UnityMcp.Core/UnityMcp.Core.csproj UnityMcp.Core/
 COPY UnityMcp.Infrastructure/UnityMcp.Infrastructure.csproj UnityMcp.Infrastructure/
 COPY UnityMcp.Application/UnityMcp.Application.csproj UnityMcp.Application/
-COPY UnityMcp.Server/UnityMCP.Server.csproj UnityMcp.Server/
+COPY UnityMCP.Server/UnityMCP.Server.csproj UnityMcp.Server/
 COPY UnityMcp.Tests/UnityMCP.Tests.csproj UnityMcp.Tests/
 
 RUN dotnet restore Unity-MCP-Server.sln
@@ -19,7 +19,7 @@ RUN dotnet restore Unity-MCP-Server.sln
 COPY . .
 
 # Build and publish the server (no tests in image)
-RUN dotnet publish UnityMcp.Server/UnityMCP.Server.csproj -c Release -o /app/publish --no-restore
+RUN dotnet publish UnityMCP.Server/UnityMCP.Server.csproj -c Release -o /app/publish --no-restore
 
 # Runtime Stage
 FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final

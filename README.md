@@ -35,7 +35,7 @@ Get up and running in minutes!
    ```
 2. Run the server:
    ```sh
-   dotnet run --project UnityMcp.Server/UnityMCP.Server.csproj
+   dotnet run --project UnityMCP.Server/UnityMCP.Server.csproj
    ```
    Or install as a global tool and run `unity-mcp` from anywhere (see [QUICKSTART.md](QUICKSTART.md)).
 
@@ -61,7 +61,7 @@ You can develop and run the MCP Server in a fully containerized environment usin
 ### Dev Container (VS Code)
 - Open the project in VS Code and run **“Reopen in Container”** (requires Docker)
 - The `.devcontainer/devcontainer.json` uses the .NET 10 dev container image and runs `dotnet restore Unity-MCP-Server.sln` after create
-- MCP uses **stdio** (no port). Use the integrated terminal or your MCP host’s config to run `dotnet run --project UnityMcp.Server/UnityMCP.Server.csproj` or `unity-mcp` if installed
+- MCP uses **stdio** (no port). Use the integrated terminal or your MCP host’s config to run `dotnet run --project UnityMCP.Server/UnityMCP.Server.csproj` or `unity-mcp` if installed
 
 ### Docker (Standalone)
 - Build the image:
