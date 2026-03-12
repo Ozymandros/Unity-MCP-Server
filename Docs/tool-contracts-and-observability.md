@@ -271,3 +271,14 @@ While Phase 0 does not yet wire a metrics backend, the following conceptual metr
 
 This document, together with the shared contract types in `UnityMcp.Core.Contracts`, satisfies Phase 0 requirements for tool contracts, error taxonomy, and baseline observability.
 
+---
+
+## 6. Orchestration / Recipes
+
+The **`unity_create_core_recipe`** MCP tool returns a JSON summary that reuses the same success/step pattern:
+
+- **Top-level**: `success`, `projectPath`, `scene_path`, `steps`, `message`.
+- **steps[]**: array of `{ name, success, message? }` for each step (scaffold, install_packages, configure_urp, create_default_scene, optional create_ui_canvas/create_ui_layout, validate_import).
+
+Full parameter list, step order, and example response are documented in [UI Schema and Tools (§4 Recipes)](ui-schema-and-tools.md#4-recipes).
+

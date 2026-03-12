@@ -188,3 +188,27 @@ The validation pipeline is considered Phase 1–ready when:
 This completes the Phase 1 design of the extended validation pipeline and its associated tests,
 in line with the roadmap’s emphasis on predictable, observable, and contract-governed operations.
 
+---
+
+## 6. Test Isolation (No Physical I/O)
+
+All tests **MUST** run without affecting the physical disk or spawning real processes. This allows safe execution in CI, containers, and restricted environments.
+
+### 6.1 How isolation is achieved
+
+- **File I/O**: Every test that uses `FileUnityService` or `MetaFileWriter` injects **`System.IO.Abstractions.TestingHelpers.MockFileSystem`**. The mock is an in-memory filesystem: paths like `C:\output\MyGame` exist only inside the mock and are never written to the real `C:\` drive.
+- **Process execution**: Tests that need `IProcessRunner` (e.g. for future Unity CLI calls) use **NSubstitute** (or similar) to mock it. No real Unity or external processes are started.
+- **No test containers required**: Because all I/O goes through abstractions and is mocked, we do not rely on Docker, temp directories on disk, or OS-level isolation for correctness. Test containers could be added later for other reasons (e.g. running real Unity in CI); they are not required for isolation from physical disk.
+
+### 6.2 Rules for test authors
+
+1. **Never** construct `FileUnityService` or `MetaFileWriter` without passing an `IFileSystem` in tests. Use `MockFileSystem` (or an equivalent in-memory implementation).
+2. **Never** pass a real `System.IO.Abstractions.FileSystem()` in test code. Production code may use it when no abstraction is injected; tests must always inject the mock.
+3. **Never** use `System.IO.File`, `System.IO.Directory`, or `Environment.GetFolderPath` for test data or assertions about paths that the service writes to. Use only the injected `_mockFs` (or the same abstraction the service uses).
+4. **Optional verification**: A test such as `AllOperations_UseMockFileSystem_NoPhysicalDiskWritten` can assert that after running a full scaffold (and other operations) with a distinctive path, that path does **not** exist on the real filesystem. This guards against regressions where someone might accidentally use the real `FileSystem` in tests.
+
+### 6.3 References
+
+- `UnityMcp.Tests`: `MetaFileWriterTests` and `FileUnityServiceNewToolsTests` use `MockFileSystem` and inject it into the service and meta writer.
+- `System.IO.Abstractions`: [GitHub](https://github.com/TestableIO/System.IO.Abstractions); `MockFileSystem` is in the `System.IO.Abstractions.TestingHelpers` package.
+

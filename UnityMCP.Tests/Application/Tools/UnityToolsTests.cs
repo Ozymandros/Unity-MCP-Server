@@ -937,5 +937,88 @@ public class FileUnityServiceNewToolsTests
         Assert.That(json, Does.Contain("\"error_count\":0"));
         Assert.That(json, Does.Contain("\"warning_count\":0"));
     }
+
+    // ---- UI authoring (Phase 1) ----
+
+    [Test]
+    public async Task CreateUiCanvasAsync_NewScene_CreatesFileWithCanvasAndEventSystem()
+    {
+        string proj = await _service.ScaffoldProjectAsync("UiCanvas", @"C:\output");
+        string json = await _service.CreateUiCanvasAsync(proj, "Assets/Scenes/MainMenu.unity");
+
+        Assert.That(json, Does.Contain("\"success\":true"));
+        Assert.That(json, Does.Contain("\"path\""));
+        Assert.That(json, Does.Contain("MainMenu.unity"));
+
+        string scenePath = _mockFs.Path.Combine(proj, "Assets", "Scenes", "MainMenu.unity");
+        Assert.That(_mockFs.File.Exists(scenePath), Is.True);
+        Assert.That(_mockFs.File.Exists(scenePath + ".meta"), Is.True);
+
+        string sceneContent = _mockFs.File.ReadAllText(scenePath);
+        Assert.That(sceneContent, Does.Contain("Canvas"));
+        Assert.That(sceneContent, Does.Contain("EventSystem"));
+        Assert.That(sceneContent, Does.Contain("Main Camera"));
+    }
+
+    [Test]
+    public async Task CreateUiLayoutAsync_AfterCanvas_AppendsHierarchyAndReturnsSuccess()
+    {
+        string proj = await _service.ScaffoldProjectAsync("UiLayout", @"C:\output");
+        await _service.CreateUiCanvasAsync(proj, "Assets/Scenes/MainMenu.unity");
+
+        const string layoutJson = "{\"name\":\"MainMenu\",\"panels\":[{\"name\":\"RootPanel\",\"controls\":[{\"name\":\"StartButton\",\"type\":0,\"text\":\"Start Game\"}]}]}";
+        string json = await _service.CreateUiLayoutAsync(proj, "Assets/Scenes/MainMenu.unity", layoutJson);
+
+        Assert.That(json, Does.Contain("\"success\":true"));
+        Assert.That(json, Does.Contain("UI layout applied successfully"));
+
+        string scenePath = _mockFs.Path.Combine(proj, "Assets", "Scenes", "MainMenu.unity");
+        string sceneContent = _mockFs.File.ReadAllText(scenePath);
+        Assert.That(sceneContent, Does.Contain("RootPanel"));
+        Assert.That(sceneContent, Does.Contain("StartButton"));
+    }
+
+    [Test]
+    public async Task CreateUiLayoutAsync_EmptyLayout_ReturnsSuccessWithWarning()
+    {
+        string proj = await _service.ScaffoldProjectAsync("UiLayoutEmpty", @"C:\output");
+        await _service.CreateUiCanvasAsync(proj, "Assets/Scenes/Empty.unity");
+
+        string json = await _service.CreateUiLayoutAsync(proj, "Assets/Scenes/Empty.unity", "{\"name\":\"Empty\",\"panels\":[]}");
+
+        Assert.That(json, Does.Contain("\"success\":true"));
+        Assert.That(json, Does.Contain("UiLayout.Empty"));
+    }
+
+    [Test]
+    public void CreateUiLayoutAsync_TargetNotFound_Throws()
+    {
+        string proj = _mockFs.Path.GetFullPath(@"C:\proj");
+        _mockFs.Directory.CreateDirectory(proj);
+        _mockFs.Directory.CreateDirectory(_mockFs.Path.Combine(proj, "Assets"));
+        _mockFs.Directory.CreateDirectory(_mockFs.Path.Combine(proj, "Assets", "Scenes"));
+
+        Assert.ThrowsAsync<FileNotFoundException>(async () =>
+            await _service.CreateUiLayoutAsync(proj, "Assets/Scenes/NoSuch.unity", "{\"name\":\"X\",\"panels\":[]}"));
+    }
+
+    /// <summary>
+    /// Verifies that all operations use MockFileSystem only: the path we "create" in the mock
+    /// must not exist on the real filesystem. If this test fails, something is writing to physical disk.
+    /// See Docs/validation-pipeline-and-tests.md §6 Test Isolation.
+    /// </summary>
+    [Test]
+    public async Task AllOperations_UseMockFileSystem_NoPhysicalDiskWritten()
+    {
+        const string sentinelPath = "UnityMcp_TestIsolation_Sentinel_DoNotCreate";
+        string outputRoot = _mockFs.Path.Combine(_mockFs.Path.GetTempPath(), sentinelPath);
+        string proj = await _service.ScaffoldProjectAsync("Proj", outputRoot);
+        await _service.CreateDefaultSceneAsync(proj, "MainScene");
+
+        // All I/O went through _mockFs. The real filesystem must NOT contain this path.
+        bool existsOnRealDisk = System.IO.Directory.Exists(proj);
+        Assert.That(existsOnRealDisk, Is.False,
+            "Test isolation broken: project path exists on real filesystem. Ensure FileUnityService is constructed with MockFileSystem only.");
+    }
 }
 
