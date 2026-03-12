@@ -1,19 +1,13 @@
 {
-	"name": "C# (.NET 10)",
-	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+	"name": "Unity MCP Server (.NET 10)",
 	"image": "mcr.microsoft.com/devcontainers/dotnet:dev-10.0",
-    
+
 	"features": {
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {}
 	},
 
-	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	// "forwardPorts": [5000, 5001],
+	"postCreateCommand": "dotnet restore Unity-MCP-Server.sln",
 
-	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "dotnet restore",
-
-	// Configure tool-specific properties.
 	"customizations": {
 		"vscode": {
 			"extensions": [

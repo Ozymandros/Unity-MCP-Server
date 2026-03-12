@@ -1,17 +1,22 @@
-# .dockerignore
+# .dockerignore — keep build context small
 **/.git
+**/.github
 **/.vs
 **/.vscode
+**/.cursor
 **/bin
 **/obj
 **/dist
 **/nupkg
+**/TestResults
+**/coverage*
+*.cobertura.xml
 *.log
 *.ps1
 *.sh
 *.txt
 Dockerfile
-docker-compose.yml
+docker-compose*.yml
 README.md
 QUICKSTART.md
 DOCKER.md

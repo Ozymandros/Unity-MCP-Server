@@ -1,0 +1,35 @@
+# CI: build and test on multiple platforms
+name: CI
+
+on:
+  push:
+    branches: [main, develop, develop_v3]
+  pull_request:
+    branches: [main, develop, develop_v3]
+
+jobs:
+  build-and-test:
+    name: Build & Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore Unity-MCP-Server.sln
+
+      - name: Build
+        run: dotnet build Unity-MCP-Server.sln --no-restore -c Release
+
+      - name: Test
+        run: dotnet test Unity-MCP-Server.sln --no-build -c Release --verbosity normal

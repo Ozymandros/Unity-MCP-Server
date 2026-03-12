@@ -1,6 +1,6 @@
 ---
 name: unity-mcp
-description: Full-featured Model Context Protocol (MCP) server for Unity Editor automation. Built on the official C# MCP SDK. Enables AI agents to scaffold projects, create scenes, scripts, materials, prefabs, and manage assets with proper .meta sidecars — all without Unity DLLs.
+description: Unity MCP Server v3.0.0 — Model Context Protocol (MCP) server for Unity Editor automation. Built on the official C# MCP SDK. Enables AI agents to scaffold projects, create scenes, scripts, materials, prefabs, and manage assets with proper .meta sidecars; runs on Windows, Linux, and macOS (.NET 10).
 ---
 
 # Unity MCP Server Skill
@@ -17,17 +17,17 @@ To install or update the Unity MCP Server as a global .NET tool:
   ```
 
   This will:
-  - Uninstall any existing global UnityMcp.Server tool
+  - Uninstall any existing global UnityMCP.Server tool
   - Build the solution in Release mode
-  - Pack the UnityMcp.Server project (creates .nupkg in UnityMcp.Server/nupkg/)
+  - Pack the server project (creates .nupkg in UnityMcp.Server/nupkg/)
   - Update the global tool from the local nupkg directory
 
   Equivalent manual steps (mutatis mutandis for your environment):
   ```shell
-  dotnet tool uninstall --global UnityMcp.Server
-  dotnet build UnityMcpServer.slnx --configuration Release
-  dotnet pack UnityMcp.Server/UnityMcp.Server.csproj -c Release
-  dotnet tool update --global --add-source UnityMcp.Server/nupkg UnityMcp.Server
+  dotnet tool uninstall --global UnityMCP.Server
+  dotnet build Unity-MCP-Server.sln --configuration Release
+  dotnet pack UnityMcp.Server/UnityMCP.Server.csproj -c Release -o nupkg
+  dotnet tool update --global --add-source UnityMcp.Server/nupkg UnityMCP.Server
   ```
 
 2. After installation, you can run the server from anywhere using:

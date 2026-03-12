@@ -45,3 +45,7 @@ nupkg
 dist
 .vscode/mcp.json
 .cursor
+
+**/TestResults
+**/coverage*
+*.cobertura.xml

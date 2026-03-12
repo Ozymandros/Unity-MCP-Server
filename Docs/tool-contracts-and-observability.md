@@ -1,6 +1,6 @@
 ## Unity MCP Tool Contracts and Observability (Phase 0)
 
-This document formalizes the **JSON contracts**, **error taxonomy**, and **observability requirements** for the Unity MCP server.
+This document formalizes the **JSON contracts**, **error taxonomy**, and **observability requirements** for the Unity MCP server (v3.0.0+).
 It is designed to be **backwards compatible** with existing tools while adding structure and clarity.
 
 ---

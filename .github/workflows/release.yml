@@ -1,0 +1,83 @@
+# Release: build, pack NuGet tool, and optionally publish
+name: Release
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Test (release)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - run: dotnet restore Unity-MCP-Server.sln
+      - run: dotnet build Unity-MCP-Server.sln -c Release --no-restore
+      - run: dotnet test Unity-MCP-Server.sln --no-build -c Release
+
+  pack:
+    name: Pack NuGet (multi-platform)
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore Unity-MCP-Server.sln
+
+      - name: Pack tool
+        run: dotnet pack UnityMcp.Server/UnityMCP.Server.csproj -c Release -o nupkg --no-restore
+
+      - name: Upload NuGet package
+        uses: actions/upload-artifact@v4
+        with:
+          name: nupkg
+          path: nupkg/*.nupkg
+
+  publish-nuget:
+    name: Publish to NuGet.org
+    needs: pack
+    runs-on: ubuntu-latest
+    if: false  # set to true and add NUGET_API_KEY secret to publish
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: nupkg
+
+      - name: Publish to NuGet
+        run: dotnet nuget push *.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+  release-assets:
+    name: Create GitHub Release
+    needs: pack
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: nupkg
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "*.nupkg"
+          generate_release_notes: true
+          draft: true
+          tag_name: ${{ github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

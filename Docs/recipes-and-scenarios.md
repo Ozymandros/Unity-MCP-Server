@@ -1,6 +1,6 @@
 ## Recipes and Scenarios
 
-This document describes orchestration recipes and how clients (e.g. [Unity-Generator](https://github.com/Ozymandros/Unity-Generator)) can use them for one-click or guided flows.
+This document describes orchestration recipes and how clients (e.g. [Unity-Generator](https://github.com/Ozymandros/Unity-Generator)) can use them for one-click or guided flows. Recipe tools live in `UnityTools.Recipes.cs` (v3.0.0+).
 
 ---
 

@@ -33,7 +33,7 @@ Before connecting, ensure the environment is stable by running the comprehensive
 dotnet test
 ```
 
-*All 9 tests should pass, verifying strict protocol compliance and service mocking.*
+*All 117 tests should pass, verifying protocol compliance, tool behaviour, and service mocking.*
 
 ## 4. Configuration Examples
 
@@ -81,7 +81,7 @@ For IDEs that support MCP extensions, you can add it through the UI or settings 
 - **Args**: (keep empty)
 - **Env Vars**: `DOTNET_ENVIRONMENT=Development`
 
-*Note: If you didn't install it as a global tool, replace `unity-mcp` with `dotnet` and use `["run", "--project", "ABSOLUTE/PATH/TO/Unity-MCP-Server/UnityMcp.Server/UnityMcp.Server.csproj"]` in the args.*
+*Note: If you didn't install it as a global tool, replace `unity-mcp` with `dotnet` and use `["run", "--project", "ABSOLUTE/PATH/TO/Unity-MCP-Server/UnityMcp.Server/UnityMCP.Server.csproj"]` in the args.*
 
 ## 5. Try it out
 

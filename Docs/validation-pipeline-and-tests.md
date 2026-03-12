@@ -5,6 +5,8 @@ to harden the core authoring loop (project → scene → UI → validation).
 
 It builds on the existing `unity_validate_csharp` and `unity_validate_import` tools.
 
+**As of v3.0.0**, the test suite has 117 tests split by fixture: `UnityToolsTests`, `UnityYamlWriterTests`, `UnityToolsNewToolsTests`, `UnityToolsRecipeTests`, `MetaFileWriterTests`, `FileUnityServiceNewToolsTests`, `AdvancedSystemsGoldenFixtureTests`.
+
 ---
 
 ## 1. Validation Pipeline Overview
@@ -218,6 +220,6 @@ All tests **MUST** run without affecting the physical disk or spawning real proc
 
 ### 6.3 References
 
-- `UnityMcp.Tests`: `MetaFileWriterTests` and `FileUnityServiceNewToolsTests` use `MockFileSystem` and inject it into the service and meta writer.
+- `UnityMcp.Tests`: Tests live in `Application/Tools/` — `MetaFileWriterTests.cs`, `FileUnityServiceNewToolsTests.cs`, and other fixture files use `MockFileSystem` and inject it into the service and meta writer.
 - `System.IO.Abstractions`: [GitHub](https://github.com/TestableIO/System.IO.Abstractions); `MockFileSystem` is in the `System.IO.Abstractions.TestingHelpers` package.
 
