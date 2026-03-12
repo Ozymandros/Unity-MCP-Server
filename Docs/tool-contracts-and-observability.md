@@ -282,3 +282,17 @@ The **`unity_create_core_recipe`** MCP tool returns a JSON summary that reuses t
 
 Full parameter list, step order, and example response are documented in [UI Schema and Tools (§4 Recipes)](ui-schema-and-tools.md#4-recipes).
 
+---
+
+## 7. Phase 2 tool result shapes (Navigation, Input, Animation)
+
+Phase 2 tools return JSON with a consistent pattern:
+
+- **Success**: `success: true`, `path` (project-relative asset path), `message`, `errors: []`. Animation may include `warnings: []` for missing clip references.
+- **Validation failure**: `success: false`, optional `path`, `message`, and `errors` array of `UnityMcpError` with stable codes:
+  - Navigation: `NavMeshConfig.InvalidJson`, `WaypointGraph.InvalidJson`, `WaypointGraph.InvalidEdge`.
+  - Input: `InputActions.InvalidJson`.
+  - Animation: `BasicAnimator.InvalidJson`; `BasicAnimator.MissingClip` appears in `warnings` when the asset is still created.
+
+Input and animation validation failures may use the same `ImportValidationResult` shape (`error_count`, `warning_count`, `errors`, `warnings`) for consistency. Full schemas and tool parameters are in [Navigation, Input, Animation (Phase 2)](navigation-input-animation-phase2.md).
+

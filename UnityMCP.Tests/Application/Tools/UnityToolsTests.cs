@@ -544,6 +544,61 @@ public class UnityToolsNewTests
         Assert.That(result, Does.Contain("\"success\":false"));
     }
 
+    // ---- Navigation (Phase 2) ----
+
+    [Test]
+    public async Task ConfigureNavmesh_CallsServiceAndReturnsJson()
+    {
+        const string configJson = "{\"agentRadius\":0.5,\"agentHeight\":2,\"agentSlope\":45}";
+        _unityService.ConfigureNavmeshAsync(@"C:\proj", configJson, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":true,\"path\":\"Assets/Settings/NavMeshConfig.json\",\"message\":null}"));
+
+        var result = await UnityTools.ConfigureNavmesh(_unityService, @"C:\proj", configJson);
+        await _unityService.Received(1).ConfigureNavmeshAsync(@"C:\proj", configJson, Arg.Any<CancellationToken>());
+        Assert.That(result, Does.Contain("\"success\":true"));
+        Assert.That(result, Does.Contain("NavMeshConfig"));
+    }
+
+    [Test]
+    public async Task CreateWaypointGraph_CallsServiceAndReturnsJson()
+    {
+        const string graphJson = "{\"name\":\"Patrol\",\"nodes\":[{\"id\":\"A\",\"position\":{\"x\":0,\"y\":0,\"z\":0}}],\"edges\":[]}";
+        _unityService.CreateWaypointGraphAsync(@"C:\proj", "Assets/Data/Patrol.waypoints.json", graphJson, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":true,\"path\":\"Assets/Data/Patrol.waypoints.json\",\"message\":\"Waypoint graph created successfully.\"}"));
+
+        var result = await UnityTools.CreateWaypointGraph(_unityService, @"C:\proj", "Assets/Data/Patrol.waypoints.json", graphJson);
+        await _unityService.Received(1).CreateWaypointGraphAsync(@"C:\proj", "Assets/Data/Patrol.waypoints.json", graphJson, Arg.Any<CancellationToken>());
+        Assert.That(result, Does.Contain("\"success\":true"));
+    }
+
+    // ---- Input (Phase 2) ----
+
+    [Test]
+    public async Task CreateInputActions_CallsServiceAndReturnsJson()
+    {
+        const string actionsJson = "{\"name\":\"PlayerControls\",\"maps\":[{\"name\":\"Gameplay\",\"actions\":[],\"bindings\":[]}]}";
+        _unityService.CreateInputActionsAsync(@"C:\proj", "Assets/Input/PlayerControls.inputactions", actionsJson, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":true,\"path\":\"Assets/Input/PlayerControls.inputactions\",\"message\":\"Input actions asset created successfully.\"}"));
+
+        var result = await UnityTools.CreateInputActions(_unityService, @"C:\proj", "Assets/Input/PlayerControls.inputactions", actionsJson);
+        await _unityService.Received(1).CreateInputActionsAsync(@"C:\proj", "Assets/Input/PlayerControls.inputactions", actionsJson, Arg.Any<CancellationToken>());
+        Assert.That(result, Does.Contain("\"success\":true"));
+    }
+
+    // ---- Basic Animation (Phase 2) ----
+
+    [Test]
+    public async Task CreateBasicAnimator_CallsServiceAndReturnsJson()
+    {
+        const string animatorJson = "{\"name\":\"CharacterAnimator\",\"defaultState\":\"Idle\",\"states\":[{\"name\":\"Idle\",\"clip\":\"Assets/Animations/Idle.anim\"}],\"transitions\":[]}";
+        _unityService.CreateBasicAnimatorAsync(@"C:\proj", "Assets/Animations/Character.animator.json", animatorJson, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult("{\"success\":true,\"path\":\"Assets/Animations/Character.animator.json\",\"message\":\"Animator definition created successfully.\"}"));
+
+        var result = await UnityTools.CreateBasicAnimator(_unityService, @"C:\proj", "Assets/Animations/Character.animator.json", animatorJson);
+        await _unityService.Received(1).CreateBasicAnimatorAsync(@"C:\proj", "Assets/Animations/Character.animator.json", animatorJson, Arg.Any<CancellationToken>());
+        Assert.That(result, Does.Contain("\"success\":true"));
+    }
+
     // ---- Core recipe (Phase 1 orchestration) ----
 
     [Test]
@@ -1000,6 +1055,142 @@ public class FileUnityServiceNewToolsTests
 
         Assert.ThrowsAsync<FileNotFoundException>(async () =>
             await _service.CreateUiLayoutAsync(proj, "Assets/Scenes/NoSuch.unity", "{\"name\":\"X\",\"panels\":[]}"));
+    }
+
+    // ---- Navigation (Phase 2) ----
+
+    [Test]
+    public async Task ConfigureNavmeshAsync_ValidJson_WritesAssetAndReturnsSuccess()
+    {
+        string proj = await _service.ScaffoldProjectAsync("NavMesh", @"C:\output");
+        const string configJson = "{\"agentRadius\":0.5,\"agentHeight\":2,\"agentSlope\":45,\"agentClimb\":0.4,\"cellSize\":0.1,\"cellHeight\":0.2,\"manualVoxelSize\":false}";
+        string json = await _service.ConfigureNavmeshAsync(proj, configJson);
+
+        Assert.That(json, Does.Contain("\"success\":true"));
+        Assert.That(json, Does.Contain("path"));
+        Assert.That(json, Does.Contain("NavMeshConfig"));
+
+        string configPath = _mockFs.Path.Combine(proj, "Assets", "Settings", "NavMeshConfig.json");
+        Assert.That(_mockFs.File.Exists(configPath), Is.True);
+        Assert.That(_mockFs.File.Exists(configPath + ".meta"), Is.True);
+        string content = _mockFs.File.ReadAllText(configPath);
+        Assert.That(content, Does.Contain("agentRadius"));
+        Assert.That(content, Does.Contain("0.5"));
+    }
+
+    [Test]
+    public async Task ConfigureNavmeshAsync_InvalidJson_ReturnsValidationError()
+    {
+        string proj = await _service.ScaffoldProjectAsync("NavMeshInvalid", @"C:\output");
+        string json = await _service.ConfigureNavmeshAsync(proj, "{ invalid json }");
+
+        Assert.That(json, Does.Contain("\"success\":false"));
+        Assert.That(json, Does.Contain("NavMeshConfig.InvalidJson"));
+    }
+
+    [Test]
+    public async Task CreateWaypointGraphAsync_ValidGraph_WritesAssetAndReturnsSuccess()
+    {
+        string proj = await _service.ScaffoldProjectAsync("Waypoints", @"C:\output");
+        const string graphJson = "{\"name\":\"PatrolRoute\",\"nodes\":[{\"id\":\"A\",\"position\":{\"x\":0,\"y\":0,\"z\":0}},{\"id\":\"B\",\"position\":{\"x\":5,\"y\":0,\"z\":0}}],\"edges\":[{\"from\":\"A\",\"to\":\"B\",\"bidirectional\":true}]}";
+        string json = await _service.CreateWaypointGraphAsync(proj, "Assets/Data/PatrolRoute.waypoints.json", graphJson);
+
+        Assert.That(json, Does.Contain("\"success\":true"));
+        Assert.That(json, Does.Contain("path"));
+        Assert.That(json, Does.Contain("PatrolRoute"));
+
+        string graphPath = _mockFs.Path.Combine(proj, "Assets", "Data", "PatrolRoute.waypoints.json");
+        Assert.That(_mockFs.File.Exists(graphPath), Is.True);
+        Assert.That(_mockFs.File.Exists(graphPath + ".meta"), Is.True);
+        string content = _mockFs.File.ReadAllText(graphPath);
+        Assert.That(content, Does.Contain("PatrolRoute"));
+        Assert.That(content, Does.Contain("A"));
+        Assert.That(content, Does.Contain("B"));
+    }
+
+    [Test]
+    public async Task CreateWaypointGraphAsync_InvalidGraph_ReturnsValidationError()
+    {
+        string proj = await _service.ScaffoldProjectAsync("WaypointsInvalid", @"C:\output");
+        const string graphJson = "{\"name\":\"X\",\"nodes\":[{\"id\":\"A\",\"position\":{\"x\":0,\"y\":0,\"z\":0}}],\"edges\":[{\"from\":\"A\",\"to\":\"C\",\"bidirectional\":false}]}";
+        string json = await _service.CreateWaypointGraphAsync(proj, "Assets/Data/X.waypoints.json", graphJson);
+
+        Assert.That(json, Does.Contain("\"success\":false"));
+        Assert.That(json, Does.Contain("WaypointGraph.InvalidEdge"));
+        Assert.That(json, Does.Contain("C"));
+    }
+
+    // ---- Input (Phase 2) ----
+
+    [Test]
+    public async Task CreateInputActionsAsync_ValidJson_WritesInputAsset()
+    {
+        string proj = await _service.ScaffoldProjectAsync("InputActions", @"C:\output");
+        const string actionsJson = "{\"name\":\"PlayerControls\",\"maps\":[{\"name\":\"Gameplay\",\"actions\":[{\"name\":\"Move\",\"type\":\"Value\",\"expectedControlType\":\"Vector2\"},{\"name\":\"Jump\",\"type\":\"Button\",\"expectedControlType\":\"Button\"}],\"bindings\":[{\"action\":\"Move\",\"path\":\"<Keyboard>/wasd\"},{\"action\":\"Jump\",\"path\":\"<Keyboard>/space\"}]}]}";
+        string json = await _service.CreateInputActionsAsync(proj, "Assets/Input/PlayerControls.inputactions", actionsJson);
+
+        Assert.That(json, Does.Contain("\"success\":true"));
+        Assert.That(json, Does.Contain("path"));
+        string assetPath = _mockFs.Path.Combine(proj, "Assets", "Input", "PlayerControls.inputactions");
+        Assert.That(_mockFs.File.Exists(assetPath), Is.True);
+        Assert.That(_mockFs.File.Exists(assetPath + ".meta"), Is.True);
+        string content = _mockFs.File.ReadAllText(assetPath);
+        Assert.That(content, Does.Contain("PlayerControls"));
+        Assert.That(content, Does.Contain("Gameplay"));
+        Assert.That(content, Does.Contain("Move"));
+    }
+
+    [Test]
+    public async Task CreateInputActionsAsync_InvalidJson_ReturnsValidationError()
+    {
+        string proj = await _service.ScaffoldProjectAsync("InputInvalid", @"C:\output");
+        string json = await _service.CreateInputActionsAsync(proj, "Assets/Input/Invalid.inputactions", "{ broken }");
+
+        Assert.That(json, Does.Contain("\"success\":false"));
+        Assert.That(json, Does.Contain("InputActions.InvalidJson"));
+    }
+
+    // ---- Basic Animation (Phase 2) ----
+
+    [Test]
+    public async Task CreateBasicAnimatorAsync_ValidDefinition_WritesAsset()
+    {
+        string proj = await _service.ScaffoldProjectAsync("Animator", @"C:\output");
+        const string animatorJson = "{\"name\":\"CharacterAnimator\",\"defaultState\":\"Idle\",\"states\":[{\"name\":\"Idle\",\"clip\":\"Assets/Animations/Idle.anim\"},{\"name\":\"Run\",\"clip\":\"Assets/Animations/Run.anim\"}],\"transitions\":[{\"from\":\"Idle\",\"to\":\"Run\",\"condition\":\"Speed > 0.1\"}]}";
+        string json = await _service.CreateBasicAnimatorAsync(proj, "Assets/Animations/Character.animator.json", animatorJson);
+
+        Assert.That(json, Does.Contain("\"success\":true"));
+        Assert.That(json, Does.Contain("path"));
+        string assetPath = _mockFs.Path.Combine(proj, "Assets", "Animations", "Character.animator.json");
+        Assert.That(_mockFs.File.Exists(assetPath), Is.True);
+        Assert.That(_mockFs.File.Exists(assetPath + ".meta"), Is.True);
+        string content = _mockFs.File.ReadAllText(assetPath);
+        Assert.That(content, Does.Contain("CharacterAnimator"));
+        Assert.That(content, Does.Contain("Idle"));
+        Assert.That(content, Does.Contain("Run"));
+    }
+
+    [Test]
+    public async Task CreateBasicAnimatorAsync_InvalidJson_ReturnsValidationError()
+    {
+        string proj = await _service.ScaffoldProjectAsync("AnimatorInvalid", @"C:\output");
+        string json = await _service.CreateBasicAnimatorAsync(proj, "Assets/Animations/X.animator.json", "{ invalid }");
+
+        Assert.That(json, Does.Contain("\"success\":false"));
+        Assert.That(json, Does.Contain("BasicAnimator.InvalidJson"));
+    }
+
+    [Test]
+    public async Task CreateBasicAnimatorAsync_MissingClip_ReportsWarning()
+    {
+        string proj = await _service.ScaffoldProjectAsync("AnimatorMissingClip", @"C:\output");
+        const string animatorJson = "{\"name\":\"X\",\"defaultState\":\"Idle\",\"states\":[{\"name\":\"Idle\",\"clip\":\"Assets/Animations/NonExistent.anim\"}],\"transitions\":[]}";
+        string json = await _service.CreateBasicAnimatorAsync(proj, "Assets/Animations/X.animator.json", animatorJson);
+
+        Assert.That(json, Does.Contain("\"success\":true"));
+        Assert.That(json, Does.Contain("warnings"));
+        Assert.That(json, Does.Contain("BasicAnimator.MissingClip"));
+        Assert.That(json, Does.Contain("NonExistent"));
     }
 
     /// <summary>

@@ -1101,8 +1101,287 @@ public class {scriptName} : MonoBehaviour
     }
 
     // -----------------------------------------------------------------------
-    // Path resolution (projectPath = base; fileName/folderName may include path; no duplicate segments)
+    // Navigation (Phase 2)
     // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Writes NavMesh configuration to Assets/Settings/NavMeshConfig.json (or project-relative path).
+    /// configJson must deserialize to NavMeshConfig; returns JSON: success, path, message, errors.
+    /// </summary>
+    public async Task<string> ConfigureNavmeshAsync(string projectPath, string configJson, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(projectPath))
+            throw new ArgumentException("Project path is required.", nameof(projectPath));
+        if (string.IsNullOrWhiteSpace(configJson))
+            throw new ArgumentException("Config JSON is required.", nameof(configJson));
+
+        NavMeshConfig config;
+        try
+        {
+            config = JsonSerializer.Deserialize<NavMeshConfig>(configJson, JsonOpts)
+                     ?? throw new InvalidOperationException("Deserialized NavMeshConfig was null.");
+        }
+        catch (Exception ex)
+        {
+            var error = new UnityMcpError
+            {
+                Category = UnityMcpErrorCategory.Validation,
+                Code = "NavMeshConfig.InvalidJson",
+                Message = $"Failed to parse NavMesh config: {ex.Message}",
+            };
+            var result = new { success = false, path = (string?)null, message = error.Message, errors = new[] { error } };
+            return JsonSerializer.Serialize(result);
+        }
+
+        string fileName = "Assets/Settings/NavMeshConfig.json";
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        EnsureDirectoryExists(resolvedPath);
+
+        string jsonToWrite = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
+        await _fs.File.WriteAllTextAsync(resolvedPath, jsonToWrite, cancellationToken);
+        await _metaWriter.WriteDefaultMetaAsync(resolvedPath, ct: cancellationToken);
+
+        string relativePath = MakeProjectRelativePath(projectPath, resolvedPath);
+        var successResult = new { success = true, path = relativePath, message = (string?)null, errors = Array.Empty<UnityMcpError>() };
+        return JsonSerializer.Serialize(successResult);
+    }
+
+    /// <summary>
+    /// Creates a waypoint graph asset from graphJson (WaypointGraph). Writes JSON to fileName (e.g. Assets/Data/PatrolRoute.waypoints.json).
+    /// Validates that every edge references existing node ids; returns ImportValidationResult-style JSON on failure.
+    /// </summary>
+    public async Task<string> CreateWaypointGraphAsync(string projectPath, string fileName, string graphJson, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(projectPath))
+            throw new ArgumentException("Project path is required.", nameof(projectPath));
+        if (string.IsNullOrWhiteSpace(fileName))
+            throw new ArgumentException("File name is required.", nameof(fileName));
+        if (string.IsNullOrWhiteSpace(graphJson))
+            throw new ArgumentException("Graph JSON is required.", nameof(graphJson));
+
+        WaypointGraph graph;
+        try
+        {
+            graph = JsonSerializer.Deserialize<WaypointGraph>(graphJson, JsonOpts)
+                    ?? throw new InvalidOperationException("Deserialized WaypointGraph was null.");
+        }
+        catch (Exception ex)
+        {
+            var error = new UnityMcpError
+            {
+                Category = UnityMcpErrorCategory.Validation,
+                Code = "WaypointGraph.InvalidJson",
+                Message = $"Failed to parse waypoint graph: {ex.Message}",
+            };
+            var validationResult = new ImportValidationResult
+            {
+                Success = false,
+                ErrorCount = 1,
+                WarningCount = 0,
+                Errors = new[] { error },
+                Warnings = Array.Empty<UnityMcpError>(),
+                Message = "Waypoint graph JSON could not be parsed.",
+            };
+            return JsonSerializer.Serialize(validationResult);
+        }
+
+        var nodeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var n in graph.Nodes)
+        {
+            if (string.IsNullOrWhiteSpace(n.Id))
+                continue;
+            nodeIds.Add(n.Id.Trim());
+        }
+
+        var errors = new List<UnityMcpError>();
+        foreach (var e in graph.Edges)
+        {
+            if (string.IsNullOrWhiteSpace(e.From) || string.IsNullOrWhiteSpace(e.To))
+            {
+                errors.Add(new UnityMcpError
+                {
+                    Category = UnityMcpErrorCategory.Validation,
+                    Code = "WaypointGraph.InvalidEdge",
+                    Message = "Edge has null or empty from/to.",
+                });
+                continue;
+            }
+            if (!nodeIds.Contains(e.From.Trim()))
+                errors.Add(new UnityMcpError
+                {
+                    Category = UnityMcpErrorCategory.Validation,
+                    Code = "WaypointGraph.InvalidEdge",
+                    Message = $"Edge references missing node id: {e.From}",
+                });
+            if (!nodeIds.Contains(e.To.Trim()))
+                errors.Add(new UnityMcpError
+                {
+                    Category = UnityMcpErrorCategory.Validation,
+                    Code = "WaypointGraph.InvalidEdge",
+                    Message = $"Edge references missing node id: {e.To}",
+                });
+        }
+
+        if (errors.Count > 0)
+        {
+            var failResult = new ImportValidationResult
+            {
+                Success = false,
+                ErrorCount = errors.Count,
+                WarningCount = 0,
+                Errors = errors,
+                Warnings = Array.Empty<UnityMcpError>(),
+                Message = "Waypoint graph validation failed.",
+            };
+            return JsonSerializer.Serialize(failResult);
+        }
+
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        EnsureDirectoryExists(resolvedPath);
+
+        string jsonToWrite = JsonSerializer.Serialize(graph, new JsonSerializerOptions { WriteIndented = true });
+        await _fs.File.WriteAllTextAsync(resolvedPath, jsonToWrite, cancellationToken);
+        await _metaWriter.WriteDefaultMetaAsync(resolvedPath, ct: cancellationToken);
+
+        string relativePath = MakeProjectRelativePath(projectPath, resolvedPath);
+        return JsonSerializer.Serialize(new { success = true, path = relativePath, message = "Waypoint graph created successfully.", errors = Array.Empty<UnityMcpError>() });
+    }
+
+    // -----------------------------------------------------------------------
+    // Modern Input System (Phase 2)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Creates an Input Actions asset (.inputactions) from actionsJson. Writes JSON to fileName.
+    /// </summary>
+    public async Task<string> CreateInputActionsAsync(string projectPath, string fileName, string actionsJson, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(projectPath))
+            throw new ArgumentException("Project path is required.", nameof(projectPath));
+        if (string.IsNullOrWhiteSpace(fileName))
+            throw new ArgumentException("File name is required.", nameof(fileName));
+        if (string.IsNullOrWhiteSpace(actionsJson))
+            throw new ArgumentException("Actions JSON is required.", nameof(actionsJson));
+
+        InputActionsAsset asset;
+        try
+        {
+            asset = JsonSerializer.Deserialize<InputActionsAsset>(actionsJson, JsonOpts)
+                    ?? throw new InvalidOperationException("Deserialized InputActionsAsset was null.");
+        }
+        catch (Exception ex)
+        {
+            var error = new UnityMcpError
+            {
+                Category = UnityMcpErrorCategory.Validation,
+                Code = "InputActions.InvalidJson",
+                Message = $"Failed to parse input actions: {ex.Message}",
+            };
+            var result = new ImportValidationResult
+            {
+                Success = false,
+                ErrorCount = 1,
+                WarningCount = 0,
+                Errors = new[] { error },
+                Warnings = Array.Empty<UnityMcpError>(),
+                Message = "Input actions JSON could not be parsed.",
+            };
+            return JsonSerializer.Serialize(result);
+        }
+
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        EnsureDirectoryExists(resolvedPath);
+
+        string jsonToWrite = JsonSerializer.Serialize(asset, new JsonSerializerOptions { WriteIndented = true });
+        await _fs.File.WriteAllTextAsync(resolvedPath, jsonToWrite, cancellationToken);
+        await _metaWriter.WriteDefaultMetaAsync(resolvedPath, ct: cancellationToken);
+
+        string relativePath = MakeProjectRelativePath(projectPath, resolvedPath);
+        return JsonSerializer.Serialize(new { success = true, path = relativePath, message = "Input actions asset created successfully.", errors = Array.Empty<UnityMcpError>() });
+    }
+
+    // -----------------------------------------------------------------------
+    // Basic Animation (Phase 2)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Creates a basic Animator definition asset (JSON surrogate). Validates referenced clip paths exist under project.
+    /// </summary>
+    public async Task<string> CreateBasicAnimatorAsync(string projectPath, string fileName, string animatorJson, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(projectPath))
+            throw new ArgumentException("Project path is required.", nameof(projectPath));
+        if (string.IsNullOrWhiteSpace(fileName))
+            throw new ArgumentException("File name is required.", nameof(fileName));
+        if (string.IsNullOrWhiteSpace(animatorJson))
+            throw new ArgumentException("Animator JSON is required.", nameof(animatorJson));
+
+        BasicAnimatorDefinition def;
+        try
+        {
+            def = JsonSerializer.Deserialize<BasicAnimatorDefinition>(animatorJson, JsonOpts)
+                  ?? throw new InvalidOperationException("Deserialized BasicAnimatorDefinition was null.");
+        }
+        catch (Exception ex)
+        {
+            var error = new UnityMcpError
+            {
+                Category = UnityMcpErrorCategory.Validation,
+                Code = "BasicAnimator.InvalidJson",
+                Message = $"Failed to parse animator definition: {ex.Message}",
+            };
+            var result = new ImportValidationResult
+            {
+                Success = false,
+                ErrorCount = 1,
+                WarningCount = 0,
+                Errors = new[] { error },
+                Warnings = Array.Empty<UnityMcpError>(),
+                Message = "Animator JSON could not be parsed.",
+            };
+            return JsonSerializer.Serialize(result);
+        }
+
+        var warnings = new List<UnityMcpError>();
+        foreach (var state in def.States)
+        {
+            if (string.IsNullOrWhiteSpace(state.Clip))
+                continue;
+            string clipResolved = ResolvePath(projectPath, state.Clip.Trim());
+            if (!_fs.File.Exists(clipResolved))
+            {
+                warnings.Add(new UnityMcpError
+                {
+                    Category = UnityMcpErrorCategory.Validation,
+                    Code = "BasicAnimator.MissingClip",
+                    Message = $"Referenced clip not found: {state.Clip}",
+                });
+            }
+        }
+
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        EnsureDirectoryExists(resolvedPath);
+
+        string jsonToWrite = JsonSerializer.Serialize(def, new JsonSerializerOptions { WriteIndented = true });
+        await _fs.File.WriteAllTextAsync(resolvedPath, jsonToWrite, cancellationToken);
+        await _metaWriter.WriteDefaultMetaAsync(resolvedPath, ct: cancellationToken);
+
+        string relativePath = MakeProjectRelativePath(projectPath, resolvedPath);
+        if (warnings.Count > 0)
+        {
+            var result = new ImportValidationResult
+            {
+                Success = true,
+                ErrorCount = 0,
+                WarningCount = warnings.Count,
+                Errors = Array.Empty<UnityMcpError>(),
+                Warnings = warnings,
+                Message = "Animator definition created; some referenced clips are missing.",
+            };
+            return JsonSerializer.Serialize(new { success = true, path = relativePath, message = result.Message, errors = Array.Empty<UnityMcpError>(), warnings });
+        }
+        return JsonSerializer.Serialize(new { success = true, path = relativePath, message = "Animator definition created successfully.", errors = Array.Empty<UnityMcpError>(), warnings = Array.Empty<UnityMcpError>() });
+    }
 
     /// <summary>
     /// Resolves path under project. Validates both projectPath and nameOrPath; builds final path

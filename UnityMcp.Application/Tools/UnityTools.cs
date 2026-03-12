@@ -458,6 +458,80 @@ public static class UnityTools
     }
 
     // -----------------------------------------------------------------------
+    // Navigation (Phase 2)
+    // -----------------------------------------------------------------------
+
+    [McpServerTool(Name = "unity_configure_navmesh"), Description(
+        "Writes or updates a NavMesh configuration asset from JSON (agentRadius, agentHeight, agentSlope, etc.). " +
+        "See NavContracts.NavMeshConfig. Returns JSON: success, path, message, errors.")]
+    public static async Task<string> ConfigureNavmesh(
+        IUnityService unityService,
+        [Description("Project root path")]
+        string projectPath,
+        [Description("NavMesh config JSON (NavMeshConfig schema)")]
+        string configJson,
+        CancellationToken cancellationToken = default)
+    {
+        return await unityService.ConfigureNavmeshAsync(projectPath, configJson, cancellationToken);
+    }
+
+    [McpServerTool(Name = "unity_create_waypoint_graph"), Description(
+        "Creates a waypoint graph asset for AI pathing (nodes and edges). " +
+        "fileName can be path (e.g. Assets/Data/PatrolRoute.waypoints.json) or name. Returns JSON: success, path, message, errors.")]
+    public static async Task<string> CreateWaypointGraph(
+        IUnityService unityService,
+        [Description("Project root path")]
+        string projectPath,
+        [Description("Asset file name or path under project for the waypoint graph")]
+        string fileName,
+        [Description("Waypoint graph JSON (name, nodes with id/position, edges with from/to/bidirectional)")]
+        string graphJson,
+        CancellationToken cancellationToken = default)
+    {
+        return await unityService.CreateWaypointGraphAsync(projectPath, fileName, graphJson, cancellationToken);
+    }
+
+    // -----------------------------------------------------------------------
+    // Modern Input System (Phase 2)
+    // -----------------------------------------------------------------------
+
+    [McpServerTool(Name = "unity_create_input_actions"), Description(
+        "Creates an Input Actions asset (.inputactions) from JSON (name, maps with actions and bindings). " +
+        "See InputContracts. Returns JSON: success, path, message, errors.")]
+    public static async Task<string> CreateInputActions(
+        IUnityService unityService,
+        [Description("Project root path")]
+        string projectPath,
+        [Description("Asset path or name, e.g. Assets/Input/PlayerControls.inputactions")]
+        string fileName,
+        [Description("Input actions JSON (InputActionsAsset schema)")]
+        string actionsJson,
+        CancellationToken cancellationToken = default)
+    {
+        return await unityService.CreateInputActionsAsync(projectPath, fileName, actionsJson, cancellationToken);
+    }
+
+    // -----------------------------------------------------------------------
+    // Basic Animation (Phase 2)
+    // -----------------------------------------------------------------------
+
+    [McpServerTool(Name = "unity_create_basic_animator"), Description(
+        "Creates a basic Animator Controller definition (JSON surrogate). Validates referenced clip paths. " +
+        "See AnimationContracts. Returns JSON: success, path, message, errors, warnings.")]
+    public static async Task<string> CreateBasicAnimator(
+        IUnityService unityService,
+        [Description("Project root path")]
+        string projectPath,
+        [Description("Animator asset path, e.g. Assets/Animations/CharacterAnimator.animator.json")]
+        string fileName,
+        [Description("Animator definition JSON (name, defaultState, states, transitions)")]
+        string animatorJson,
+        CancellationToken cancellationToken = default)
+    {
+        return await unityService.CreateBasicAnimatorAsync(projectPath, fileName, animatorJson, cancellationToken);
+    }
+
+    // -----------------------------------------------------------------------
     // Orchestration recipe (Phase 1 core recipe)
     // -----------------------------------------------------------------------
 

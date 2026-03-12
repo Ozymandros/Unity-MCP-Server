@@ -31,8 +31,9 @@ High-level schema for NavMesh bake settings:
 }
 ```
 
-This schema will be mapped to a ScriptableObject or project-wide NavMesh settings asset
-using a dedicated contract type (to be added in `UnityMcp.Core.Contracts`).
+Contracts are in `UnityMcp.Core.Contracts.NavContracts` (`NavMeshConfig`). Phase 2 implementation
+writes a JSON asset to `Assets/Settings/NavMeshConfig.json` (ScriptableObject surrogate).
+Result JSON: `success`, `path`, `message`, `errors` (validation failures use code `NavMeshConfig.InvalidJson`).
 
 #### Waypoint graph
 
@@ -51,26 +52,20 @@ Representation for simple AI pathing:
 }
 ```
 
-Nodes and edges will be serialized as a ScriptableObject asset and consumed by
-AI/navigation scripts.
+Contracts: `WaypointGraph`, `WaypointNode`, `WaypointEdge`, `NavVector3` in `NavContracts`.
+Phase 2 writes a JSON asset (e.g. `Assets/Data/PatrolRoute.waypoints.json`). Edges must reference
+existing node ids; invalid edges return validation error with code `WaypointGraph.InvalidEdge`.
+Result JSON: `success`, `path`, `message`, `errors`.
 
-### 1.2 Planned MCP Tools
+### 1.2 MCP Tools (implemented)
 
-- `unity_configure_navmesh`
-  - Parameters:
-    - `projectPath` (string)
-    - `configJson` (NavMesh config JSON)
-  - Behavior:
-    - Writes/updates a NavMesh configuration asset in the project.
-    - Optionally sets up components on designated surfaces in scenes.
+- **`unity_configure_navmesh`**
+  - Parameters: `projectPath`, `configJson` (NavMeshConfig JSON).
+  - Writes `Assets/Settings/NavMeshConfig.json` and `.meta`. Returns JSON: success, path, message, errors.
 
-- `unity_create_waypoint_graph`
-  - Parameters:
-    - `projectPath` (string)
-    - `fileName` (asset path/name)
-    - `graphJson` (waypoint graph JSON)
-  - Behavior:
-    - Creates a ScriptableObject asset representing the graph.
+- **`unity_create_waypoint_graph`**
+  - Parameters: `projectPath`, `fileName` (e.g. `Assets/Data/PatrolRoute.waypoints.json`), `graphJson`.
+  - Validates node ids referenced by edges; writes JSON asset and `.meta`. Returns JSON: success, path, message, errors.
 
 ---
 
@@ -100,19 +95,13 @@ Simple `InputAction` asset representation:
 }
 ```
 
-This will be modeled by a set of DTOs under `UnityMcp.Core.Contracts` and translated
-to Unity Input System JSON.
+Contracts: `InputActionsAsset`, `InputActionMapDef`, `InputActionDef`, `InputBindingDef` in `UnityMcp.Core.Contracts.InputContracts`. Phase 2 writes JSON to the given path (e.g. `Assets/Input/PlayerControls.inputactions`). Result JSON: `success`, `path`, `message`, `errors` (parse failure uses code `InputActions.InvalidJson`). No `PlayerInput` prefab is created yet.
 
-### 2.2 Planned MCP Tool
+### 2.2 MCP Tool (implemented)
 
-- `unity_create_input_actions`
-  - Parameters:
-    - `projectPath` (string)
-    - `fileName` (asset path/name, e.g. `Assets/Input/PlayerControls.inputactions`)
-    - `actionsJson` (InputAction JSON as above)
-  - Behavior:
-    - Generates a valid `.inputactions` asset on disk.
-    - Future: Optionally creates a basic `PlayerInput` prefab wired to the asset.
+- **`unity_create_input_actions`**
+  - Parameters: `projectPath`, `fileName` (e.g. `Assets/Input/PlayerControls.inputactions`), `actionsJson`.
+  - Writes JSON asset and `.meta`. Returns JSON: success, path, message, errors.
 
 ---
 
@@ -137,39 +126,22 @@ Minimal description for an Animator Controller:
 }
 ```
 
-Constraints for Phase 2:
+Constraints for Phase 2: single-layer, simple bool/float conditions; no blend trees or sub-state machines. Contracts: `BasicAnimatorDefinition`, `AnimatorStateDef`, `AnimatorTransitionDef` in `UnityMcp.Core.Contracts.AnimationContracts`. Phase 2 writes a JSON surrogate (e.g. `Assets/Animations/Character.animator.json`) and validates that referenced clip paths exist under the project; missing clips are reported as warnings. Result JSON: `success`, `path`, `message`, `errors`, `warnings` (codes include `BasicAnimator.InvalidJson`, `BasicAnimator.MissingClip`).
 
-- Single-layer, humanoid or generic controllers only.
-- Simple bool/float parameter conditions; no blend trees or sub-state machines yet.
+### 3.2 MCP Tool (implemented)
 
-### 3.2 Planned MCP Tool
-
-- `unity_create_basic_animator`
-  - Parameters:
-    - `projectPath` (string)
-    - `fileName` (Animator Controller asset path)
-    - `animatorJson` (JSON as above)
-  - Behavior:
-    - Generates a simple Animator Controller asset.
-    - Validates that referenced clips exist (via `unity_list_assets` or direct IO).
+- **`unity_create_basic_animator`**
+  - Parameters: `projectPath`, `fileName` (e.g. `Assets/Animations/Character.animator.json`), `animatorJson`.
+  - Writes JSON definition and `.meta`; missing clip paths add warnings. Returns JSON: success, path, message, errors, warnings.
 
 ---
 
-## 4. Contracts and Architecture
+## 4. Contracts and Architecture (implemented)
 
-- JSON contracts for navigation, input, and basic animation will live under:
-  - `UnityMcp.Core.Contracts` (e.g. `NavContracts`, `InputContracts`, `AnimationContracts`).
-- `IUnityService` will grow methods:
-  - `ConfigureNavmeshAsync`
-  - `CreateWaypointGraphAsync`
-  - `CreateInputActionsAsync`
-  - `CreateBasicAnimatorAsync`
-- `UnityTools` will expose MCP tools with matching signatures.
-- Initial implementations in `FileUnityService` may be:
-  - Partial (writing ScriptableObjects/JSON assets).
-  - Or structured stubs returning clear messages, similar to the Phase 1 UI tools,
-    until full YAML/asset generation is implemented.
+- **Contracts**: `UnityMcp.Core.Contracts.NavContracts`, `InputContracts`, `AnimationContracts` define the JSON DTOs.
+- **IUnityService** methods: `ConfigureNavmeshAsync`, `CreateWaypointGraphAsync`, `CreateInputActionsAsync`, `CreateBasicAnimatorAsync`.
+- **UnityTools** MCP tools: `unity_configure_navmesh`, `unity_create_waypoint_graph`, `unity_create_input_actions`, `unity_create_basic_animator`.
+- **FileUnityService** writes JSON assets (NavMesh config, waypoint graphs, input actions, animator definition surrogates) and `.meta` files; validation errors use `UnityMcpError` and optional `ImportValidationResult`-style payloads.
 
-This plan completes the Phase 2 design requirement by specifying the key JSON shapes
-and tool entry points while preserving clean layering and backward-compatible evolution.
+Phase 2 implementations are Unity-agnostic (no Unity DLLs); assets are JSON-backed and can be extended later to native Unity formats.
 

@@ -183,4 +183,40 @@ public interface IUnityService
     /// fileName can be a path or name; no duplicate segments.
     /// </summary>
     Task<string> CreateUiLayoutAsync(string projectPath, string fileName, string layoutJson, CancellationToken cancellationToken = default);
+
+    // -----------------------------------------------------------------------
+    // Navigation (Phase 2)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Writes/updates a NavMesh configuration asset from configJson (NavMeshConfig schema).
+    /// Returns JSON: success, path, message, optional errors.
+    /// </summary>
+    Task<string> ConfigureNavmeshAsync(string projectPath, string configJson, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a waypoint graph asset from graphJson (WaypointGraph schema).
+    /// fileName can be path or name; no duplicate segments. Returns JSON: success, path, message, optional errors.
+    /// </summary>
+    Task<string> CreateWaypointGraphAsync(string projectPath, string fileName, string graphJson, CancellationToken cancellationToken = default);
+
+    // -----------------------------------------------------------------------
+    // Modern Input System (Phase 2)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Creates an Input Actions asset (.inputactions) from actionsJson (InputActionsAsset schema).
+    /// Returns JSON: success, path, message, optional errors.
+    /// </summary>
+    Task<string> CreateInputActionsAsync(string projectPath, string fileName, string actionsJson, CancellationToken cancellationToken = default);
+
+    // -----------------------------------------------------------------------
+    // Basic Animation (Phase 2)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Creates a basic Animator Controller asset from animatorJson (BasicAnimatorDefinition schema).
+    /// Returns JSON: success, path, message, optional errors/warnings.
+    /// </summary>
+    Task<string> CreateBasicAnimatorAsync(string projectPath, string fileName, string animatorJson, CancellationToken cancellationToken = default);
 }
