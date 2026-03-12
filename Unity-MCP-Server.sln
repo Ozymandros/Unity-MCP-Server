@@ -1,0 +1,65 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 18
+VisualStudioVersion = 18.3.11520.95 d18.3
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnityMcp.Application", "UnityMcp.Application\UnityMcp.Application.csproj", "{F4A7D12C-9273-9B47-BD36-13C7549DD944}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnityMcp.Core", "UnityMcp.Core\UnityMcp.Core.csproj", "{32C84D1C-BF6B-447F-8C96-FE092FC66970}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnityMcp.Infrastructure", "UnityMcp.Infrastructure\UnityMcp.Infrastructure.csproj", "{748AE3AA-D4B5-FD5A-AF6D-A81601723DFD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnityMCP.Server", "UnityMcp.Server\UnityMCP.Server.csproj", "{0AC66EE2-2C2F-57F5-3100-FE1DAA105BD5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnityMCP.Tests", "UnityMcp.Tests\UnityMCP.Tests.csproj", "{EE23D5C2-A6D1-DEED-C0CF-9CA8B1BAFE87}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "doc", "doc", "{A1601EB3-097A-41A3-A2AB-088935BB3B14}"
+	ProjectSection(SolutionItems) = preProject
+		DOCKER.md = DOCKER.md
+		mcp-config.example.json = mcp-config.example.json
+		QUICKSTART.md = QUICKSTART.md
+		README.md = README.md
+		Skills\SKILL.md = Skills\SKILL.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "deploy", "deploy", "{2605B23E-2F8C-478E-9EBB-2C014FB96760}"
+	ProjectSection(SolutionItems) = preProject
+		install-tool.ps1 = install-tool.ps1
+		setup.ps1 = setup.ps1
+		setup.sh = setup.sh
+		test-mcp-server-unity.py = test-mcp-server-unity.py
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F4A7D12C-9273-9B47-BD36-13C7549DD944}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F4A7D12C-9273-9B47-BD36-13C7549DD944}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F4A7D12C-9273-9B47-BD36-13C7549DD944}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F4A7D12C-9273-9B47-BD36-13C7549DD944}.Release|Any CPU.Build.0 = Release|Any CPU
+		{32C84D1C-BF6B-447F-8C96-FE092FC66970}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{32C84D1C-BF6B-447F-8C96-FE092FC66970}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{32C84D1C-BF6B-447F-8C96-FE092FC66970}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{32C84D1C-BF6B-447F-8C96-FE092FC66970}.Release|Any CPU.Build.0 = Release|Any CPU
+		{748AE3AA-D4B5-FD5A-AF6D-A81601723DFD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{748AE3AA-D4B5-FD5A-AF6D-A81601723DFD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{748AE3AA-D4B5-FD5A-AF6D-A81601723DFD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{748AE3AA-D4B5-FD5A-AF6D-A81601723DFD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0AC66EE2-2C2F-57F5-3100-FE1DAA105BD5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0AC66EE2-2C2F-57F5-3100-FE1DAA105BD5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0AC66EE2-2C2F-57F5-3100-FE1DAA105BD5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0AC66EE2-2C2F-57F5-3100-FE1DAA105BD5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EE23D5C2-A6D1-DEED-C0CF-9CA8B1BAFE87}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EE23D5C2-A6D1-DEED-C0CF-9CA8B1BAFE87}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EE23D5C2-A6D1-DEED-C0CF-9CA8B1BAFE87}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EE23D5C2-A6D1-DEED-C0CF-9CA8B1BAFE87}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {15056413-2FD3-4087-B7F6-11695438B569}
+	EndGlobalSection
+EndGlobal

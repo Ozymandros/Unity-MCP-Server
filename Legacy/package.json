@@ -1,0 +1,40 @@
+{
+  "name": "com.unitymcp.server",
+  "version": "2.0.0",
+  "displayName": "Unity MCP Server",
+  "description": "Model Context Protocol (MCP) server for Unity Editor. Enables AI assistants and LLMs to interact with Unity projects programmatically through a standardized JSON-RPC 2.0 interface.",
+  "unity": "2020.3",
+  "keywords": [
+    "MCP",
+    "Model Context Protocol",
+    "AI",
+    "LLM",
+    "Automation",
+    "Editor",
+    "JSON-RPC",
+    "TCP",
+    "Tools"
+  ],
+  "author": {
+    "name": "Unity MCP Contributors",
+    "url": "https://github.com/ozymandros/unity-mcp-server"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ozymandros/unity-mcp-server.git"
+  },
+  "documentationUrl": "https://github.com/ozymandros/unity-mcp-server/blob/main/Documentation~/README.md",
+  "dependencies": {},
+  "samples": [
+    {
+      "displayName": "Sample Client: Python",
+      "description": "Demonstration client (Python) for connecting to the Unity MCP Server. Not part of the main server implementation.",
+      "path": "Samples~/PythonClient"
+    },
+    {
+      "displayName": "Sample Client: Node.js",
+      "description": "Demonstration client (Node.js) for connecting to the Unity MCP Server. Not part of the main server implementation.",
+      "path": "Samples~/NodeClient"
+    }
+  ]
+}

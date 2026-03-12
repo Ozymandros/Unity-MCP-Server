@@ -1,0 +1,18 @@
+# .dockerignore
+**/.git
+**/.vs
+**/.vscode
+**/bin
+**/obj
+**/dist
+**/nupkg
+*.log
+*.ps1
+*.sh
+*.txt
+Dockerfile
+docker-compose.yml
+README.md
+QUICKSTART.md
+DOCKER.md
+mcp-config.example.json

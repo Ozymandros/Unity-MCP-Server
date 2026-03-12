@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/skills/">
+    <File Path="Skills/SKILL.md" />
+  </Folder>
+  <Project Path="UnityMcp.Application/UnityMcp.Application.csproj" />
+  <Project Path="UnityMcp.Core/UnityMcp.Core.csproj" />
+  <Project Path="UnityMcp.Infrastructure/UnityMcp.Infrastructure.csproj" />
+  <Project Path="UnityMcp.Server/UnityMcp.Server.csproj" />
+  <Project Path="UnityMcp.Tests/UnityMcp.Tests.csproj" />
+</Solution>

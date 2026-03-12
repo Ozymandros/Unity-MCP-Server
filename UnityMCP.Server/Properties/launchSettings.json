@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "UnityMcp.Server": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "environmentVariables": {
+        "UNITY_PATH": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.3.2f1\\Editor\\Data\\Managed"
+      }
+    }
+  }
+}

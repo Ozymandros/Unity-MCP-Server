@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "unity": {
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project", 
+        "C:/Projects/Unity-MCP-Server/UnityMcp.Server/UnityMcp.Server.csproj"
+      ]
+    }
+  }
+}
