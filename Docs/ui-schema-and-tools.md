@@ -240,3 +240,71 @@ This separation supports clean architecture and allows the UI layer to evolve wi
 
 If one step fails, `success` is false and the failing step has `success: false` and a `message`; remaining steps may still be present so clients can see partial progress.
 
+### 4.2 unity_create_prototype_recipe
+
+**Purpose**
+
+- Phase 2/3 project bootstrapper: same flow as the core recipe (scaffold or use existing project → URP + packages → default scene), then optionally add main menu UI, nav config + waypoint graph, input actions, basic animator, advanced animator, timeline, VFX asset, and physics setup; always ends with validate import. Returns a single JSON with the same shape as the core recipe so clients can reuse step-parsing logic.
+
+**MCP tool**
+
+- `UnityTools.CreatePrototypeRecipe` (name: `unity_create_prototype_recipe`).
+
+**Parameters**
+
+| Parameter                | Type   | Default       | Description |
+|--------------------------|--------|---------------|-------------|
+| `projectName`            | string | `""`          | Name of the project when creating new; ignored if `projectPath` is set. |
+| `outputRoot`             | string | `""`          | Output directory for new project. Ignored if `projectPath` is set. |
+| `projectPath`            | string | `""`          | Existing project root path. If set, scaffold is skipped. |
+| `sceneName`              | string | `"MainScene"` | Name of the default scene (without `.unity`). |
+| `packagesJson`           | string | `null`       | Optional JSON array of package IDs (e.g. `[\"com.unity.inputsystem\"]`). When null or empty, default URP + TextMeshPro list is used. |
+| `includeNav`             | bool   | `false`       | If true, add NavMesh config and waypoint graph at `Assets/Data/PatrolRoute.waypoints.json`. |
+| `includeInput`           | bool   | `false`       | If true, add input actions at `Assets/Input/PlayerControls.inputactions`. |
+| `includeAnimator`        | bool   | `false`       | If true, add basic animator at `Assets/Animations/Character.animator.json`. |
+| `includeAdvancedAnimator`| bool   | `false`       | If true, add Phase 3 advanced animator at `Assets/Animations/CharacterAdvanced.animator.json`. |
+| `includeTimeline`        | bool   | `false`       | If true, add Phase 3 timeline at `Assets/Timelines/IntroCutscene.timeline.json`. |
+| `includeVfx`             | bool   | `false`       | If true, add VFX surrogate at `Assets/VFX/ExplosionSmall.vfx.json`. |
+| `includePhysics`         | bool   | `false`       | If true, add physics setup at `Assets/Physics/HumanoidRagdoll.physics.json`. |
+| `includeMainMenu`        | bool   | `false`       | If true, create `Assets/Scenes/MainMenu.unity` with Canvas and a minimal menu layout (same as core recipe). |
+
+**Order of steps**
+
+1. Resolve path: use `projectPath` if provided; otherwise call `ScaffoldProjectAsync(projectName, outputRoot, null)` (step name: `use_existing_project` or `scaffold`).
+2. `InstallPackagesAsync` with package list: when `packagesJson` is non-null/non-empty and valid, use the parsed array; otherwise use default (URP, core, TextMeshPro).
+3. `ConfigureUrpAsync`.
+4. `CreateDefaultSceneAsync(projectPath, sceneName)`.
+5. If `includeMainMenu`: `CreateUiCanvasAsync` for `Assets/Scenes/MainMenu.unity`, then `CreateUiLayoutAsync` with minimal menu JSON.
+6. If `includeNav`: `ConfigureNavmeshAsync`, then `CreateWaypointGraphAsync` for `Assets/Data/PatrolRoute.waypoints.json`.
+7. If `includeInput`: `CreateInputActionsAsync` for `Assets/Input/PlayerControls.inputactions`.
+8. If `includeAnimator`: `CreateBasicAnimatorAsync` for `Assets/Animations/Character.animator.json`.
+9. If `includeAdvancedAnimator`: `CreateAdvancedAnimatorAsync` for `Assets/Animations/CharacterAdvanced.animator.json`.
+10. If `includeTimeline`: `CreateTimelineAsync` for `Assets/Timelines/IntroCutscene.timeline.json`.
+11. If `includeVfx`: `CreateVfxAssetAsync` for `Assets/VFX/ExplosionSmall.vfx.json`.
+12. If `includePhysics`: `CreatePhysicsSetupAsync` for `Assets/Physics/HumanoidRagdoll.physics.json`.
+13. `ValidateImportAsync`.
+
+**Response JSON**
+
+- Same shape as core recipe: `success`, `projectPath`, `scene_path`, `steps` (array of `{ name, success, message? }`), `message`. Step names include `create_ui_canvas`, `create_ui_layout`, `configure_navmesh`, `create_waypoint_graph`, `create_input_actions`, `create_basic_animator`, `create_advanced_animator`, `create_timeline`, `create_vfx_asset`, `create_physics_setup` when the corresponding option is enabled.
+
+**Example (minimal flags)**
+
+```json
+{
+  "success": true,
+  "projectPath": "C:\\proj",
+  "scene_path": "Assets/Scenes/MainScene.unity",
+  "steps": [
+    { "name": "use_existing_project", "success": true, "message": null },
+    { "name": "install_packages", "success": true, "message": null },
+    { "name": "configure_urp", "success": true, "message": null },
+    { "name": "create_default_scene", "success": true, "message": null },
+    { "name": "validate_import", "success": true, "message": null }
+  ],
+  "message": null
+}
+```
+
+For a full prototype with all options enabled, `steps` will include the optional step names in the order listed above. See [Recipes and scenarios](recipes-and-scenarios.md#1-prototype-project-scenario) for usage patterns (one-click full prototype, checkboxes, existing project).
+

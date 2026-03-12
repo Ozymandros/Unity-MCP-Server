@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -26,6 +26,10 @@
     <ProjectReference Include="..\UnityMcp.Core\UnityMcp.Core.csproj" />
     <ProjectReference Include="..\UnityMcp.Application\UnityMcp.Application.csproj" />
     <ProjectReference Include="..\UnityMcp.Infrastructure\UnityMcp.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Fixtures\**\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

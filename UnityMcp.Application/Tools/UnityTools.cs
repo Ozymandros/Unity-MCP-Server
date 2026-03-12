@@ -746,7 +746,7 @@ public static class UnityTools
 
     [McpServerTool(Name = "unity_create_prototype_recipe"), Description(
         "Phase 2/3 project bootstrapper: scaffold (or use existing project), URP + packages, default scene, " +
-        "then optionally add nav config + waypoint graph, input actions, basic animator, advanced animator, timeline, VFX asset, physics setup, and validate. " +
+        "then optionally add main menu UI, nav config + waypoint graph, input actions, basic animator, advanced animator, timeline, VFX asset, physics setup, and validate. " +
         "Returns JSON: success, projectPath, scene_path, steps[] with per-step success and message.")]
     public static async Task<string> CreatePrototypeRecipe(
         IUnityService unityService,
@@ -758,6 +758,8 @@ public static class UnityTools
         string projectPath = "",
         [Description("Name of the default scene (without .unity). Default: MainScene")]
         string sceneName = "MainScene",
+        [Description("Optional JSON array of package IDs (e.g. [\"com.unity.inputsystem\"]). When null or empty, default URP + TextMeshPro list is used.")]
+        string? packagesJson = null,
         [Description("If true, add NavMesh config and a default waypoint graph (Assets/Data/PatrolRoute.waypoints.json).")]
         bool includeNav = false,
         [Description("If true, add default input actions (Assets/Input/PlayerControls.inputactions).")]
@@ -772,6 +774,8 @@ public static class UnityTools
         bool includeVfx = false,
         [Description("If true, add a default physics setup (Assets/Physics/HumanoidRagdoll.physics.json).")]
         bool includePhysics = false,
+        [Description("If true, create Assets/Scenes/MainMenu.unity with Canvas and a minimal menu layout (same as core recipe).")]
+        bool includeMainMenu = false,
         CancellationToken cancellationToken = default)
     {
         var steps = new List<object>();
@@ -800,9 +804,20 @@ public static class UnityTools
             }
         }
 
+        IReadOnlyList<string> packageList = new[] { "com.unity.render-pipelines.universal", "com.unity.render-pipelines.core", "com.unity.textmeshpro" };
+        if (!string.IsNullOrWhiteSpace(packagesJson))
+        {
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<string[]>(packagesJson);
+                if (parsed != null && parsed.Length > 0)
+                    packageList = parsed;
+            }
+            catch { /* use default list */ }
+        }
         try
         {
-            string json = await unityService.InstallPackagesAsync(resolvedPath!, ["com.unity.render-pipelines.universal", "com.unity.render-pipelines.core", "com.unity.textmeshpro"], cancellationToken);
+            string json = await unityService.InstallPackagesAsync(resolvedPath!, packageList, cancellationToken);
             bool stepOk = ParseSuccess(json);
             steps.Add(new { name = "install_packages", success = stepOk, message = stepOk ? (string?)null : ParseMessage(json) });
             if (!stepOk) overallSuccess = false;
@@ -838,6 +853,30 @@ public static class UnityTools
         {
             steps.Add(new { name = "create_default_scene", success = false, message = ex.Message });
             overallSuccess = false;
+        }
+
+        if (includeMainMenu && overallSuccess)
+        {
+            try
+            {
+                string json = await unityService.CreateUiCanvasAsync(resolvedPath!, "Assets/Scenes/MainMenu.unity", cancellationToken);
+                bool stepOk = ParseSuccess(json);
+                steps.Add(new { name = "create_ui_canvas", success = stepOk, message = stepOk ? (string?)null : ParseMessage(json) });
+                if (!stepOk) overallSuccess = false;
+                else
+                {
+                    const string minimalMenu = "{\"name\":\"MainMenu\",\"panels\":[{\"name\":\"RootPanel\",\"controls\":[{\"name\":\"StartButton\",\"type\":0,\"text\":\"Start Game\"}]}]}";
+                    string layoutJson = await unityService.CreateUiLayoutAsync(resolvedPath!, "Assets/Scenes/MainMenu.unity", minimalMenu, cancellationToken);
+                    bool layoutOk = ParseSuccess(layoutJson);
+                    steps.Add(new { name = "create_ui_layout", success = layoutOk, message = layoutOk ? (string?)null : ParseMessage(layoutJson) });
+                    if (!layoutOk) overallSuccess = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                steps.Add(new { name = "create_ui_canvas", success = false, message = ex.Message });
+                overallSuccess = false;
+            }
         }
 
         if (includeNav)

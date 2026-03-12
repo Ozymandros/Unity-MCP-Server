@@ -157,6 +157,15 @@ For JSON-returning methods (`InstallPackagesAsync`, `CreateDefaultSceneAsync`, `
   - Property names are stable (`scene_path`, `prefab_path`, `error_count`, `warning_count`).
   - Additional fields such as `errors` are present and correctly shaped when populated.
 
+**Advanced systems golden fixtures** live under `UnityMcp.Tests/Fixtures/AdvancedSystems/`. The fixture set covers:
+
+- **Advanced animator**: success, invalid JSON (`AdvancedAnimator.InvalidJson`), invalid structure (`AdvancedAnimator.InvalidLayer`).
+- **Timeline**: success, invalid JSON (`Timeline.InvalidJson`); optional warnings for missing clip/audio.
+- **VFX**: success, invalid JSON (`Vfx.InvalidJson`), invalid parameters (`Vfx.InvalidParameters`).
+- **Physics**: success, invalid JSON (`PhysicsSetup.InvalidJson`), invalid reference (`PhysicsSetup.InvalidReference`).
+
+Tests in `AdvancedSystemsGoldenFixtureTests` run the corresponding `FileUnityService` methods with the same inputs that produce each outcome and assert the result JSON matches the fixture (success, path when applicable, and error codes). Fixtures are copied to the test output directory via the project file.
+
 ### 4.4 End-to-End Validation Scenarios (Design)
 
 To be implemented when Unity CLI execution is wired in CI:

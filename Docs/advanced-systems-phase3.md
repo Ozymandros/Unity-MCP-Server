@@ -224,3 +224,34 @@ Example:
 
 This document now reflects the **implemented** Phase 3 behavior: JSON‑level contracts, surrogate asset generation under `Assets/…/*.json`, and consistent result shapes and error codes for advanced animation, VFX, and physics tools.
 
+---
+
+## 5. Future work and Unity‑native mapping (post–Phase 3)
+
+### 5.1 Contract-to-Unity mapping (design reference)
+
+When Unity Editor or batch tooling is available, the existing JSON contracts can be mapped to real Unity assets. The following is a design reference for implementers; no Unity DLLs or runtime dependency are required in this repo.
+
+- **Advanced animator**
+  - **Contracts:** `AnimatorLayerContract`, `AnimatorStateMachineContract`, states, transitions, blend trees.
+  - **Unity target:** Animator Controller asset (`.controller`). YAML includes `AnimatorStateMachine`, `AnimatorState`, `AnimatorStateTransition`, and (for blend trees) `BlendTree` with motion references. Layers map to top-level state machines; sub-state machines map to nested `ChildStateMachine` entries. Default state and transitions map to `defaultState` / `transitions` in the state machine serialization.
+
+- **Timeline**
+  - **Contracts:** `TimelineDefinition`, `TimelineTrackContract`, `TimelineClipContract` (animation clip path, audio path, start, duration).
+  - **Unity target:** Timeline Playable Asset (e.g. `.playable` or Timeline-specific asset). YAML includes `PlayableAsset`, track bindings (binding to a GameObject or component), and clips with `start`, `duration`, and references to animation clips or audio assets. Animation tracks map to `AnimationPlayableAsset`; audio tracks to `AudioPlayableAsset`.
+
+- **VFX**
+  - **Contracts:** `ParticleEffectContract`, `ParticleEmissionContract`, `ParticleShapeContract`, color and burst settings.
+  - **Unity target:** Built-in Particle System (component on a GameObject, or prefab). Serialization is component-based (ParticleSystem module data). Alternatively, VFX Graph can be targeted later with a separate mapping from the same contract to VFX Graph asset structure.
+
+- **Physics**
+  - **Contracts:** `RagdollSetupContract`, `RagdollBoneContract`, `JointContract` (bone names, collider types, mass, joint type and connected body).
+  - **Unity target:** Prefab with hierarchy of GameObjects; each bone has a Rigidbody and Collider (Capsule/Box/Sphere from `colliderType`). Joints (Hinge, ConfigurableJoint, etc.) connect parent and child bones. Anchor and axis can be derived from bone names or default conventions.
+
+MCP tool names and JSON request/response shapes remain unchanged; a future “Unity-native” writer (e.g. an Editor script or separate service that reads the same JSON and writes the above assets) can be plugged in or replace the current JSON-surrogate implementation when running inside or alongside Unity.
+
+### 5.2 Other future work
+
+- **Golden fixtures**: Implemented; advanced systems fixtures live under `UnityMcp.Tests/Fixtures/AdvancedSystems/` (see validation-pipeline-and-tests.md §4.3).
+- **Extended recipe options**: Implemented; `unity_create_prototype_recipe` supports `includeMainMenu` and optional `packagesJson`. Template-based scene variants remain doc-only.
+
