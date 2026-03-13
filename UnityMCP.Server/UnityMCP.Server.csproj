@@ -15,7 +15,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>3.0.0</Version>
+    <Version>3.0.1</Version>
     <PackageId>UnityMCP.Server</PackageId>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>unity-mcp</ToolCommandName>

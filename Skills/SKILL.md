@@ -8,39 +8,48 @@ description: Unity MCP Server v3.0.0 — Model Context Protocol (MCP) server for
 
 ## Installation & Update
 
-To install or update the Unity MCP Server as a global .NET tool:
+You can install the Unity MCP Server as a global .NET tool from **NuGet.org** or from a local build.
 
-1. Run the provided PowerShell script from the repo root:
+### From NuGet.org (recommended)
 
-  ```powershell
-  ./install-tool.ps1
-  ```
+```shell
+dotnet tool install --global UnityMCP.Server
+```
 
-  This will:
-  - Uninstall any existing global UnityMCP.Server tool
-  - Build the solution in Release mode
-  - Pack the server project (creates .nupkg in UnityMcp.Server/nupkg/)
-  - Update the global tool from the local nupkg directory
+Update to the latest published version:
 
-  Equivalent manual steps (mutatis mutandis for your environment):
-  ```shell
-  dotnet tool uninstall --global UnityMCP.Server
-  dotnet build Unity-MCP-Server.sln --configuration Release
-  dotnet pack UnityMCP.Server/UnityMCP.Server.csproj -c Release -o nupkg
-  dotnet tool update --global --add-source UnityMcp.Server/nupkg UnityMCP.Server
-  ```
+```shell
+dotnet tool update --global UnityMCP.Server
+```
 
-2. After installation, you can run the server from anywhere using:
+After installation, you can run the server from anywhere using:
 
-  ```shell
-  unity-mcp
-  ```
+```shell
+unity-mcp
+```
 
-3. To test the tool with the official Inspector:
+### From a local build (development)
 
-  ```shell
-  npx @modelcontextprotocol/inspector unity-mcp
-  ```
+From the repo root, either run:
+
+```powershell
+./install-tool.ps1
+```
+
+or the equivalent manual steps:
+
+```shell
+dotnet tool uninstall --global UnityMCP.Server
+dotnet build Unity-MCP-Server.sln --configuration Release
+dotnet pack UnityMCP.Server/UnityMCP.Server.csproj -c Release -o UnityMcp.Server/nupkg
+dotnet tool update --global --add-source UnityMcp.Server/nupkg UnityMCP.Server
+```
+
+To test the tool with the official Inspector:
+
+```shell
+npx @modelcontextprotocol/inspector unity-mcp
+```
 
 # Unity MCP Server Skill
 
@@ -57,6 +66,7 @@ Unity requires `.meta` files next to every asset and folder — this server gene
 - **Idempotent**: Reuses project folder by name — no timestamps or UUIDs
 - **Project Info**: Query name, path, Unity version, asset status
 - **Folders**: Create new folders with `.meta` sidecars
+ - **Directory behavior**: All write-heavy tools (scaffold, create_scene, create_script, save_script/text/texture/audio, default scene, nav/input/anim/VFX/physics tools) automatically create any missing Unity subfolders under `projectPath` as needed (e.g. `Assets/Scenes`, `Assets/Scripts`, `Assets/Audio`, `Packages`).
 
 ### 2. AI-Driven Scene Authoring
 

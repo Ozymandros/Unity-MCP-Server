@@ -42,6 +42,10 @@ Get up and running in minutes!
 - Python 3.7+ or Node.js 14+ (for client examples)
 
 ### Installation
+You can either run from source, or install the published NuGet tool.
+
+**Option A – Run from source**
+
 1. Clone this repo and build:
    ```sh
    dotnet build Unity-MCP-Server.sln
@@ -50,7 +54,28 @@ Get up and running in minutes!
    ```sh
    dotnet run --project UnityMCP.Server/UnityMCP.Server.csproj
    ```
-   Or install as a global tool and run `unity-mcp` from anywhere (see [QUICKSTART.md](QUICKSTART.md)).
+
+**Option B – Install via NuGet (global tool)**
+
+Install the tool globally from NuGet.org:
+
+```sh
+dotnet tool install --global UnityMCP.Server
+```
+
+After installation you can run:
+
+```sh
+unity-mcp
+```
+
+To upgrade to the latest version:
+
+```sh
+dotnet tool update --global UnityMCP.Server
+```
+
+For local development builds instead of NuGet, use `install-tool.ps1` (see [Skills/SKILL.md](Skills/SKILL.md)).
 
 ### Test Connection
 - **Python:**

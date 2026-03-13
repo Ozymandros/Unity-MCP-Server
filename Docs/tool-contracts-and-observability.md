@@ -5,6 +5,20 @@ It is designed to be **backwards compatible** with existing tools while adding s
 
 ---
 
+### Path and Directory Semantics
+
+- `projectPath` is treated as the project **root** (typically the folder that would be opened in Unity).
+- Tools that **write files** (scaffold, create/save assets, install packages, advanced systems) will:
+  - Resolve file paths under `projectPath` (e.g. `Assets/Scenes`, `Assets/Scripts`, `Assets/Audio`, `Packages`).
+  - Automatically create any **missing parent directories** under `projectPath` before writing.
+- Callers are expected to ensure that `projectPath` itself exists or is created via `ScaffoldProjectAsync`.
+- Some tools (e.g. `ConfigureUrpAsync`, `ValidateImportAsync`) operate on existing Unity projects and expect core Unity files (e.g. `ProjectSettings/*.asset`) to be present; they do not fabricate those files if absent.
+
+These rules ensure that:
+
+- Recipes and individual tools behave the same way whether the project was scaffolded via `unity_scaffold_project` or created manually.
+- Missing subfolders do not cause spurious IO errors; instead, they are created on demand in the standard Unity layout.
+
 ## 1. Error Taxonomy and Standard Error Shape
 
 All Unity MCP operations that can fail in a structured way SHOULD use the shared error model defined in `UnityMcp.Core.Contracts`:

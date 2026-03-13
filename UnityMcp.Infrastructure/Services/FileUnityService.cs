@@ -140,6 +140,7 @@ public class {scriptName} : MonoBehaviour
     public async Task CreateGameObjectAsync(string projectPath, string fileName, string gameObjectName, CancellationToken cancellationToken = default)
     {
         string resolvedScenePath = ResolvePath(projectPath, fileName);
+        EnsureDirectoryExists(resolvedScenePath);
         var go = new GameObjectDef { Name = gameObjectName };
         string fragment = UnityYamlWriter.WriteGameObjectFragment(go);
         await _fs.File.AppendAllTextAsync(resolvedScenePath, fragment, cancellationToken);

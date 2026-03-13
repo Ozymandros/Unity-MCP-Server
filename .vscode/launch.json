@@ -1,15 +1,15 @@
 {
-    "version": "3.0.0",
-    "configurations": [
-        {
-            "name": ".NET: Launch Unity MCP Server",
-            "type": "dotnet",
-            "request": "launch"
-        },
-        {
-            "name": ".NET: Attach to Process",
-            "type": "dotnet",
-            "request": "attach"
-        }
-    ]
+  "version": "3.0.1",
+  "configurations": [
+    {
+      "name": ".NET: Launch Unity MCP Server",
+      "type": "dotnet",
+      "request": "launch"
+    },
+    {
+      "name": ".NET: Attach to Process",
+      "type": "dotnet",
+      "request": "attach"
+    }
+  ]
 }

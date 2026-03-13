@@ -100,12 +100,45 @@ public class FileUnityServiceNewToolsTests
     }
 
     [Test]
+    public async Task SaveScript_WhenFoldersMissing_CreatesAssetsAndScripts()
+    {
+        // Existing project root without Unity subfolders
+        string projRoot = _mockFs.Path.GetFullPath(@"C:\ManualScriptProject");
+        _mockFs.Directory.CreateDirectory(projRoot);
+
+        await _service.SaveScriptAsync(projRoot, "Player.cs", "using UnityEngine;\npublic class Player : MonoBehaviour {}");
+
+        string scriptsDir = _mockFs.Path.Combine(projRoot, "Assets", "Scripts");
+        string scriptPath = _mockFs.Path.Combine(scriptsDir, "Player.cs");
+
+        Assert.That(_mockFs.Directory.Exists(scriptsDir), Is.True);
+        Assert.That(_mockFs.File.Exists(scriptPath), Is.True);
+        Assert.That(_mockFs.File.Exists(scriptPath + ".meta"), Is.True);
+    }
+
+    [Test]
     public async Task SaveTextAsset_CreatesFileAndMeta()
     {
         string proj = await _service.ScaffoldProjectAsync("TextTest", @"C:\output");
         await _service.SaveTextAssetAsync(proj, "info.txt", "Hello World");
 
         string filePath = _mockFs.Path.Combine(proj, "Assets", "Text", "info.txt");
+        Assert.That(_mockFs.File.Exists(filePath), Is.True);
+        Assert.That(_mockFs.File.Exists(filePath + ".meta"), Is.True);
+    }
+
+    [Test]
+    public async Task SaveTextAsset_WhenFoldersMissing_CreatesAssetsAndText()
+    {
+        string projRoot = _mockFs.Path.GetFullPath(@"C:\ManualTextProject");
+        _mockFs.Directory.CreateDirectory(projRoot);
+
+        await _service.SaveTextAssetAsync(projRoot, "info.txt", "Hello World");
+
+        string textDir = _mockFs.Path.Combine(projRoot, "Assets", "Text");
+        string filePath = _mockFs.Path.Combine(textDir, "info.txt");
+
+        Assert.That(_mockFs.Directory.Exists(textDir), Is.True);
         Assert.That(_mockFs.File.Exists(filePath), Is.True);
         Assert.That(_mockFs.File.Exists(filePath + ".meta"), Is.True);
     }
@@ -125,6 +158,23 @@ public class FileUnityServiceNewToolsTests
     }
 
     [Test]
+    public async Task SaveTexture_WhenFoldersMissing_CreatesAssetsAndTextures()
+    {
+        string projRoot = _mockFs.Path.GetFullPath(@"C:\ManualTexProject");
+        _mockFs.Directory.CreateDirectory(projRoot);
+
+        string base64 = Convert.ToBase64String(new byte[] { 0x89, 0x50, 0x4E, 0x47 });
+        await _service.SaveTextureAsync(projRoot, "sprite.png", base64);
+
+        string texDir = _mockFs.Path.Combine(projRoot, "Assets", "Textures");
+        string filePath = _mockFs.Path.Combine(texDir, "sprite.png");
+
+        Assert.That(_mockFs.Directory.Exists(texDir), Is.True);
+        Assert.That(_mockFs.File.Exists(filePath), Is.True);
+        Assert.That(_mockFs.File.Exists(filePath + ".meta"), Is.True);
+    }
+
+    [Test]
     public async Task SaveAudio_CreatesFileAndMeta()
     {
         string proj = await _service.ScaffoldProjectAsync("AudioTest", @"C:\output");
@@ -136,6 +186,39 @@ public class FileUnityServiceNewToolsTests
 
         string meta = _mockFs.File.ReadAllText(filePath + ".meta");
         Assert.That(meta, Does.Contain("AudioImporter:"));
+    }
+
+    [Test]
+    public async Task CreateGameObjectAsync_WhenSceneFolderMissing_CreatesDirectory()
+    {
+        // Existing root without Assets/Scenes
+        string projRoot = _mockFs.Path.GetFullPath(@"C:\ManualSceneProject");
+        _mockFs.Directory.CreateDirectory(projRoot);
+
+        await _service.CreateGameObjectAsync(projRoot, "Assets/Scenes/Main.unity", "Cube");
+
+        string scenesDir = _mockFs.Path.Combine(projRoot, "Assets", "Scenes");
+        string scenePath = _mockFs.Path.Combine(scenesDir, "Main.unity");
+
+        Assert.That(_mockFs.Directory.Exists(scenesDir), Is.True);
+        Assert.That(_mockFs.File.Exists(scenePath), Is.True);
+    }
+
+    [Test]
+    public async Task SaveAudio_WhenFoldersMissing_CreatesAssetsAndAudio()
+    {
+        string projRoot = _mockFs.Path.GetFullPath(@"C:\ManualAudioProject");
+        _mockFs.Directory.CreateDirectory(projRoot);
+
+        string base64 = Convert.ToBase64String(new byte[] { 0xFF, 0xFB, 0x90 });
+        await _service.SaveAudioAsync(projRoot, "sfx.mp3", base64);
+
+        string audioDir = _mockFs.Path.Combine(projRoot, "Assets", "Audio");
+        string filePath = _mockFs.Path.Combine(audioDir, "sfx.mp3");
+
+        Assert.That(_mockFs.Directory.Exists(audioDir), Is.True);
+        Assert.That(_mockFs.File.Exists(filePath), Is.True);
+        Assert.That(_mockFs.File.Exists(filePath + ".meta"), Is.True);
     }
 
     [Test]
@@ -183,6 +266,21 @@ public class FileUnityServiceNewToolsTests
         string manifest = _mockFs.File.ReadAllText(_mockFs.Path.Combine(proj, "Packages", "manifest.json"));
         Assert.That(manifest, Does.Contain("com.unity.textmeshpro"));
         Assert.That(manifest, Does.Contain("3.0.6"));
+    }
+
+    [Test]
+    public async Task AddPackages_WhenPackagesFolderMissing_CreatesPackagesAndManifest()
+    {
+        string projRoot = _mockFs.Path.GetFullPath(@"C:\ManualPkgProject");
+        _mockFs.Directory.CreateDirectory(projRoot);
+
+        await _service.AddPackagesAsync(projRoot, "{\"com.unity.textmeshpro\":\"3.0.6\"}");
+
+        string packagesDir = _mockFs.Path.Combine(projRoot, "Packages");
+        string manifestPath = _mockFs.Path.Combine(packagesDir, "manifest.json");
+
+        Assert.That(_mockFs.Directory.Exists(packagesDir), Is.True);
+        Assert.That(_mockFs.File.Exists(manifestPath), Is.True);
     }
 
     [Test]
