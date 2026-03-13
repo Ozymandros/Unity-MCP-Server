@@ -1,0 +1,4 @@
+{
+  "success": false,
+  "errors": [{ "code": "AdvancedAnimator.InvalidJson" }]
+}

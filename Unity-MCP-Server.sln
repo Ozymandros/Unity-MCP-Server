@@ -8,9 +8,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnityMcp.Core", "UnityMcp.C
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnityMcp.Infrastructure", "UnityMcp.Infrastructure\UnityMcp.Infrastructure.csproj", "{748AE3AA-D4B5-FD5A-AF6D-A81601723DFD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnityMCP.Server", "UnityMcp.Server\UnityMCP.Server.csproj", "{0AC66EE2-2C2F-57F5-3100-FE1DAA105BD5}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnityMCP.Server", "UnityMCP.Server\UnityMCP.Server.csproj", "{0AC66EE2-2C2F-57F5-3100-FE1DAA105BD5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnityMCP.Tests", "UnityMcp.Tests\UnityMCP.Tests.csproj", "{EE23D5C2-A6D1-DEED-C0CF-9CA8B1BAFE87}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnityMcp.Tests", "UnityMcp.Tests\UnityMcp.Tests.csproj", "{EE23D5C2-A6D1-DEED-C0CF-9CA8B1BAFE87}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "doc", "doc", "{A1601EB3-097A-41A3-A2AB-088935BB3B14}"
 	ProjectSection(SolutionItems) = preProject

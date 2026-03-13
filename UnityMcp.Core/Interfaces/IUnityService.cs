@@ -166,4 +166,94 @@ public interface IUnityService
     /// Returns JSON: success, error_count, warning_count, errors, warnings, message.
     /// </summary>
     Task<string> ValidateImportAsync(string projectPath, CancellationToken cancellationToken = default);
+
+    // -----------------------------------------------------------------------
+    // UI authoring (Phase 1 foundations)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Creates or updates a UGUI Canvas (with EventSystem) as a Unity scene or prefab.
+    /// fileName can be a path or name; no duplicate segments.
+    /// The returned JSON is currently a simple status payload and may be extended in future versions.
+    /// </summary>
+    Task<string> CreateUiCanvasAsync(string projectPath, string fileName, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Applies a high-level UiLayout (see UiContracts) to a Canvas in a scene or prefab.
+    /// fileName can be a path or name; no duplicate segments.
+    /// </summary>
+    Task<string> CreateUiLayoutAsync(string projectPath, string fileName, string layoutJson, CancellationToken cancellationToken = default);
+
+    // -----------------------------------------------------------------------
+    // Navigation (Phase 2)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Writes/updates a NavMesh configuration asset from configJson (NavMeshConfig schema).
+    /// Returns JSON: success, path, message, optional errors.
+    /// </summary>
+    Task<string> ConfigureNavmeshAsync(string projectPath, string configJson, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a waypoint graph asset from graphJson (WaypointGraph schema).
+    /// fileName can be path or name; no duplicate segments. Returns JSON: success, path, message, optional errors.
+    /// </summary>
+    Task<string> CreateWaypointGraphAsync(string projectPath, string fileName, string graphJson, CancellationToken cancellationToken = default);
+
+    // -----------------------------------------------------------------------
+    // Modern Input System (Phase 2)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Creates an Input Actions asset (.inputactions) from actionsJson (InputActionsAsset schema).
+    /// Returns JSON: success, path, message, optional errors.
+    /// </summary>
+    Task<string> CreateInputActionsAsync(string projectPath, string fileName, string actionsJson, CancellationToken cancellationToken = default);
+
+    // -----------------------------------------------------------------------
+    // Basic Animation (Phase 2)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Creates a basic Animator Controller asset from animatorJson (BasicAnimatorDefinition schema).
+    /// Returns JSON: success, path, message, optional errors/warnings.
+    /// </summary>
+    Task<string> CreateBasicAnimatorAsync(string projectPath, string fileName, string animatorJson, CancellationToken cancellationToken = default);
+
+    // -----------------------------------------------------------------------
+    // Advanced Animation & Timelines (Phase 3)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Creates an advanced Animator definition asset (multi-layer, sub-state machines, blend trees).
+    /// Returns JSON: success, path, message, errors.
+    /// </summary>
+    Task<string> CreateAdvancedAnimatorAsync(string projectPath, string fileName, string animatorJson, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a Timeline definition asset from timelineJson (TimelineDefinition schema).
+    /// Returns JSON: success, path, message, errors, warnings.
+    /// </summary>
+    Task<string> CreateTimelineAsync(string projectPath, string fileName, string timelineJson, CancellationToken cancellationToken = default);
+
+    // -----------------------------------------------------------------------
+    // VFX / particles (Phase 3)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Creates a VFX particle asset from vfxJson (ParticleEffectContract schema).
+    /// Returns JSON: success, path, message, errors. Validation failures use ImportValidationResult-style payloads
+    /// with codes such as Vfx.InvalidJson and Vfx.InvalidParameters.
+    /// </summary>
+    Task<string> CreateVfxAssetAsync(string projectPath, string fileName, string vfxJson, CancellationToken cancellationToken = default);
+
+    // -----------------------------------------------------------------------
+    // Advanced Physics (Phase 3)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Creates a physics setup (ragdoll/joints) asset from physicsJson (RagdollSetupContract schema).
+    /// Returns JSON: success, path, message, errors.
+    /// </summary>
+    Task<string> CreatePhysicsSetupAsync(string projectPath, string fileName, string physicsJson, CancellationToken cancellationToken = default);
 }

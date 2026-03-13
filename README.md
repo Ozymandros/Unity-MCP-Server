@@ -1,22 +1,35 @@
-# MCP Server (.NET) v1.3.0
+# Unity MCP Server (.NET) v3.0.0
 
-[![.NET CI](https://img.shields.io/github/actions/workflow/status/ozymandros/unity-mcp-server/dotnet.yml?branch=main&label=.NET%20CI&logo=dotnet&logoColor=white&style=flat-square)](https://github.com/ozymandros/unity-mcp-server/actions/workflows/dotnet.yml)
-[![Quality](https://img.shields.io/github/actions/workflow/status/ozymandros/unity-mcp-server/static_analysis.yml?branch=main&label=Quality&logo=github-actions&logoColor=white&style=flat-square)](https://github.com/ozymandros/unity-mcp-server/actions/workflows/static_analysis.yml)
+<!-- Build & Quality -->
+[![CI](https://img.shields.io/github/actions/workflow/status/Ozymandros/Unity-MCP-Server/ci.yml?branch=master&label=CI&logo=dotnet&logoColor=white&style=flat-square)](https://github.com/Ozymandros/Unity-MCP-Server/actions/workflows/ci.yml)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/Ozymandros/Unity-MCP-Server/codeql.yml?branch=master&label=CodeQL&logo=github&style=flat-square)](https://github.com/Ozymandros/Unity-MCP-Server/actions/workflows/codeql.yml)
+[![Release](https://img.shields.io/github/actions/workflow/status/Ozymandros/Unity-MCP-Server/release.yml?branch=master&label=Release&logo=githubactions&logoColor=white&style=flat-square)](https://github.com/Ozymandros/Unity-MCP-Server/actions/workflows/release.yml)
+
+<!-- Distribution -->
+[![NuGet](https://img.shields.io/nuget/v/UnityMCP.Server?style=flat-square&logo=nuget&logoColor=white)](https://www.nuget.org/packages/UnityMCP.Server)
+[![Docker](https://img.shields.io/docker/v/ozymandros/unity-mcp-server?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/ozymandros/unity-mcp-server)
+[![GitHub Release](https://img.shields.io/github/v/release/Ozymandros/Unity-MCP-Server?display_name=tag&style=flat-square&logo=github)](https://github.com/Ozymandros/Unity-MCP-Server/releases)
+
+<!-- Ecosystem -->
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-orange?style=flat-square&logo=json)](https://modelcontextprotocol.io)
+[![MCP Inspector](https://img.shields.io/badge/MCP%20Inspector-supported-blue?style=flat-square&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=modelcontextprotocol.mcp-inspector)
+[![Docker MCP Setup](https://img.shields.io/badge/Docker%20MCP%20Setup-supported-blue?style=flat-square&logo=docker)](https://github.com/Ozymandros/Unity-MCP-Server/blob/master/Docs/docker-mcp-setup.md)
+
+<!-- Project -->
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square&logo=opensourceinitiative&logoColor=white)](https://opensource.org/licenses/MIT)
 
-A pure .NET implementation of the Model Context Protocol (MCP) server. Enables AI assistants and LLMs to interact with applications via JSON-RPC 2.0 over TCP. No Unity or UPM dependencies.
+A pure .NET Model Context Protocol (MCP) server for Unity Editor automation. Enables AI assistants and LLMs to scaffold projects, create scenes, scripts, prefabs, and manage assets with proper .meta sidecars — no Unity or UPM dependencies at build or runtime.
 
 ---
 
 ## Features
-- **22 MCP tools**: Project scaffolding, scene authoring, typed asset saving (with .meta sidecars), C# validation, UPM packages, builds.
+- **Extended MCP tool set**: Project scaffolding, scene authoring, typed asset saving (with .meta sidecars), C# validation, UPM packages, UI/navigation/input/animation/VFX/physics tools, and orchestration recipes.
 - **Complete .meta generation**: MonoImporter, TextureImporter, AudioImporter, DefaultImporter, and folder .meta — Unity recognises all assets on import.
-- **Extensible tool/skill architecture**: Add new automation and integration tools easily.
-- **JSON-RPC 2.0 over TCP**: Standard protocol for interoperability with any client (Node.js, Python, etc).
-- **Pure .NET**: No Unity/UPM dependencies. Runs anywhere .NET 10.0+ is supported.
-- **Docker & DevContainer ready**: Containerized for CI/CD and cloud workflows.
-- **Comprehensive test suite**: 55 tests covering all tools (unit + integration).
+- **Extensible tool/skill architecture**: Tools organised in partial classes by concern; add new automation easily.
+- **JSON-RPC 2.0 over stdio**: MCP over stdio for compatibility with Claude Desktop, Cursor, and other MCP hosts.
+- **Pure .NET**: No Unity/UPM dependencies. Runs on Windows, Linux, and macOS where .NET 10.0+ is supported.
+- **CI/CD**: GitHub Actions for build, test (multi-OS), CodeQL, Dependabot, and NuGet release packaging.
+- **Comprehensive test suite**: 117 tests (unit + integration), split by fixture and concern.
 
 ---
 
@@ -29,14 +42,40 @@ Get up and running in minutes!
 - Python 3.7+ or Node.js 14+ (for client examples)
 
 ### Installation
+You can either run from source, or install the published NuGet tool.
+
+**Option A – Run from source**
+
 1. Clone this repo and build:
    ```sh
-   dotnet build UnityMcpServer.slnx
+   dotnet build Unity-MCP-Server.sln
    ```
 2. Run the server:
    ```sh
-   dotnet run --project UnityMcp.Server
+   dotnet run --project UnityMCP.Server/UnityMCP.Server.csproj
    ```
+
+**Option B – Install via NuGet (global tool)**
+
+Install the tool globally from NuGet.org:
+
+```sh
+dotnet tool install --global UnityMCP.Server
+```
+
+After installation you can run:
+
+```sh
+unity-mcp
+```
+
+To upgrade to the latest version:
+
+```sh
+dotnet tool update --global UnityMCP.Server
+```
+
+For local development builds instead of NuGet, use `install-tool.ps1` (see [Skills/SKILL.md](Skills/SKILL.md)).
 
 ### Test Connection
 - **Python:**
@@ -58,38 +97,37 @@ Get up and running in minutes!
 You can develop and run the MCP Server in a fully containerized environment using VS Code Dev Containers and Docker.
 
 ### Dev Container (VS Code)
-- Open the project in VS Code
-- If prompted, "Reopen in Container" (requires Docker)
-- The `.devcontainer/devcontainer.json` configures the environment with .NET SDK, PowerShell, and C# extensions
-- Port 8765 is forwarded for MCP connections
+- Open the project in VS Code and run **“Reopen in Container”** (requires Docker)
+- The `.devcontainer/devcontainer.json` uses the .NET 10 dev container image and runs `dotnet restore Unity-MCP-Server.sln` after create
+- MCP uses **stdio** (no port). Use the integrated terminal or your MCP host’s config to run `dotnet run --project UnityMCP.Server/UnityMCP.Server.csproj` or `unity-mcp` if installed
 
 ### Docker (Standalone)
-- Build the Docker image:
+- Build the image:
   ```sh
-  docker build -t mcp-server-dotnet .
+  docker build -t unity-mcp-server .
   ```
-- Run the server in a container:
+- Run the server (stdio; MCP hosts start this with stdin/stdout connected):
   ```sh
-  docker run -p 8765:8765 mcp-server-dotnet
+  docker run -i --rm unity-mcp-server
   ```
-- The server will be accessible on `localhost:8765` from your host
+- **Configure as MCP server:** See **[Docs/docker-mcp-setup.md](Docs/docker-mcp-setup.md)** for Claude Desktop, Cursor, and integration examples. Optional: mount a Unity folder and set `UNITY_PATH` (see [DOCKER.md](DOCKER.md)).
 
 ---
 
 ## Project Structure
-- **UnityMcp.Server/**: .NET server entry point (stdio MCP transport)
-- **UnityMcp.Application/**: MCP tool definitions (22 tools)
-- **UnityMcp.Core/**: Interfaces and abstractions
-- **UnityMcp.Infrastructure/**: File-based Unity service, YAML writer, MetaFileWriter
-- **UnityMcp.Tests/**: 55 tests (unit + integration)
-- **Skills/SKILL.md**: AI agent skill reference
-- **Documentation~/**: Architecture, API reference, CI/CD docs
+- **UnityMcp.Server/**: .NET server entry point (stdio MCP transport); packable as `unity-mcp` global tool (v3.0.0).
+- **UnityMcp.Application/**: MCP tool definitions in partial classes (UnityTools.cs + UnityTools.*.cs by concern).
+- **UnityMcp.Core/**: Interfaces and abstractions.
+- **UnityMcp.Infrastructure/**: File-based Unity service, YAML writer, MetaFileWriter.
+- **UnityMcp.Tests/**: 117 tests in fixture-split files (unit + integration).
+- **Docs/**: Validation pipeline, tool contracts, UI/nav/recipes, and [Docker MCP setup](Docs/docker-mcp-setup.md) (install/run/configure + integration example).
+- **Skills/SKILL.md**: AI agent skill reference.
 
 ---
 
 ## Protocol & API Reference
 
-See [Documentation~/API_REFERENCE.md](Documentation~/API_REFERENCE.md) for the full protocol and tool documentation.
+See [Docs/](Docs/) for tool contracts, validation pipeline, and scenario docs. Tool list and usage are in [Skills/SKILL.md](Skills/SKILL.md).
 
 ---
 
@@ -101,26 +139,20 @@ See [Documentation~/API_REFERENCE.md](Documentation~/API_REFERENCE.md) for the f
 ---
 
 ## Version History
-- **1.4.0** (2026-03-01)
-  - 22 MCP tools (9 new: scaffold, folder, save script/text/texture/audio, validate C#, add packages, project info)
-  - Full .meta sidecar generation (MonoImporter, TextureImporter, AudioImporter, DefaultImporter, folder)
-  - Existing tools (create_script, create_asset, create_scene) now also generate .meta sidecars
-  - 55 tests (31 new integration tests)
-- **1.3.0** (2026-02-20)
-  - 22 MCP tools (9 new: scaffold, folder, save script/text/texture/audio, validate C#, add packages, project info)
-  - Full .meta sidecar generation (MonoImporter, TextureImporter, AudioImporter, DefaultImporter, folder)
-  - Existing tools (create_script, create_asset, create_scene) now also generate .meta sidecars
-  - 55 tests (31 new integration tests)
+- **3.0.0** (2026-03)
+  - Version set to 3.0.0; NuGet package metadata and multi-platform (Windows, Linux, macOS).
+  - Refactor: UnityTools split into partial classes by concern (ScenesAndAssets, Project, PackagesAndValidation, Ui, Navigation, InputAndAnimation, VfxAndPhysics, Recipes).
+  - Tests refactored into separate files by fixture (UnityToolsTests, UnityYamlWriterTests, UnityToolsNewToolsTests, UnityToolsRecipeTests, MetaFileWriterTests, FileUnityServiceNewToolsTests, AdvancedSystemsGoldenFixtureTests).
+  - GitHub Actions: CI (multi-OS build + test), Release (NuGet pack on tag), CodeQL, Dependabot.
+  - 117 tests (unit + integration).
+  **2.0.0** (2026-03-12)
+- **1.5.0** / **1.4.0** (2026-03-01)
+  - Extended MCP tools (scaffold, folder, save script/text/texture/audio, validate C#, add packages, project info, UI, nav, input, animation, VFX, physics, recipes).
+  - Full .meta sidecar generation; 55+ tests.
 - **1.2.0** (2026-02-15)
-  - Pure .NET structure, Unity/UPM code archived
-  - Major documentation and protocol improvements
-  - Expanded API and troubleshooting docs
-  - Added VS Code DevContainer and Docker support
-- **1.1.0** (2026-02-14)
-  - License-free CI/CD pipeline
-  - Standalone test suite and solution reorg
+  - Pure .NET structure, Unity/UPM code archived; Docs and Docker support.
 - **1.0.0** (2025-02-14)
-  - Initial release with core MCP protocol and 5 tools
+  - Initial release with core MCP protocol and tools.
 
 ---
 

@@ -15,10 +15,27 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>1.4.0</Version>
+    <Version>3.0.3</Version>
+    <PackageId>UnityMCP.Server</PackageId>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>unity-mcp</ToolCommandName>
     <PackageOutputPath>./nupkg</PackageOutputPath>
+    <Title>Unity MCP Server</Title>
+    <Description>Model Context Protocol (MCP) server for Unity Editor automation. Enables AI agents to create scenes, scripts, prefabs, and manage Unity projects.</Description>
+    <Authors>Unity MCP Contributors</Authors>
+    <PackageTags>mcp;unity;model-context-protocol;ai;automation</PackageTags>
+    <PackageProjectUrl>https://github.com/Ozymandros/Unity-MCP-Server</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Ozymandros/Unity-MCP-Server</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <!-- Framework-dependent tool: runs on any OS with .NET 10 (Windows, Linux, macOS) -->
+    <IsPackable>true</IsPackable>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>app-icon.png</PackageIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../README.md" Pack="true" PackagePath="" />
+    <None Include="app-icon.png" Pack="true" PackagePath="" />
+  </ItemGroup>
 
 </Project>

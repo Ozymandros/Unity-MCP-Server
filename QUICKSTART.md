@@ -23,7 +23,13 @@ dotnet --version
 ./setup.sh
 ```
 
-*Note: The global tool installation allows you to run `unity-mcp` from any directory.*
+Alternatively, you can install the published NuGet tool directly (any OS):
+
+```bash
+dotnet tool install --global UnityMCP.Server
+```
+
+*Note: Installing as a global tool allows you to run `unity-mcp` from any directory.*
 
 ## 3. Verify Robustness (Run Tests)
 
@@ -33,7 +39,7 @@ Before connecting, ensure the environment is stable by running the comprehensive
 dotnet test
 ```
 
-*All 9 tests should pass, verifying strict protocol compliance and service mocking.*
+*All 117 tests should pass, verifying protocol compliance, tool behaviour, and service mocking.*
 
 ## 4. Configuration Examples
 
@@ -81,7 +87,7 @@ For IDEs that support MCP extensions, you can add it through the UI or settings 
 - **Args**: (keep empty)
 - **Env Vars**: `DOTNET_ENVIRONMENT=Development`
 
-*Note: If you didn't install it as a global tool, replace `unity-mcp` with `dotnet` and use `["run", "--project", "ABSOLUTE/PATH/TO/Unity-MCP-Server/UnityMcp.Server/UnityMcp.Server.csproj"]` in the args.*
+*Note: If you didn't install it as a global tool, replace `unity-mcp` with `dotnet` and use `["run", "--project", "ABSOLUTE/PATH/TO/Unity-MCP-Server/UnityMCP.Server/UnityMCP.Server.csproj"]` in the args.*
 
 ## 5. Try it out
 
@@ -90,6 +96,8 @@ Use **projectPath** (project root), **fileName** (file name or path under projec
 - Create script: `unity_create_script(projectPath, "Assets/Scripts/SpaceshipController.cs", "SpaceshipController", content)` or `unity_save_script(projectPath, "SpaceshipController.cs", content)` (bare fileName goes under Assets/Scripts).
 - Create scene: `unity_create_scene(projectPath, "Assets/Scenes/Level1.unity")`.
 - List assets: `unity_list_assets(projectPath, "Assets", "*")`.
+
+The server will automatically create any missing subfolders **under** your project root (for example `Assets/Scripts`, `Assets/Scenes`, `Assets/Audio`, `Assets/Text`, `Packages`) when writing files. The **projectPath** itself should already exist or be created by the scaffold tool.
 
 Ask Claude:
 

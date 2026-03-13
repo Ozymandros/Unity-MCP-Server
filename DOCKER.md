@@ -1,6 +1,12 @@
 # Docker Integration (Legal & Functional)
 
-To use the Unity MCP Server within a Docker container while complying with Unity's licensing (by not redistributing their DLLs), you can mount your local Unity installation as a read-only volume.
+**As of v3.0.0**, the Unity MCP Server is a pure .NET application and runs on Windows, Linux, and macOS without any Unity DLLs. The server works fully in a container without mounting Unity. The volume-mount approach below is optional (e.g. for future Unity CLI batch-mode validation).
+
+**Full instructions:** For install, run, and **using the container as an MCP server** (Claude Desktop, Cursor, integration example), see **[Docs/docker-mcp-setup.md](Docs/docker-mcp-setup.md)**.
+
+---
+
+To use the server in Docker while optionally giving it access to Unity managed assemblies (e.g. for batch validation), you can mount your local Unity installation as a read-only volume.
 
 This approach ensures that:
 
@@ -12,15 +18,23 @@ This approach ensures that:
 
 ### 1. Build the Image
 
-First, build the server image. You may need to provide the Unity DLLs to the build context or build locally first if you are using a strictly isolated build environment.
+No Unity DLLs or build secrets are required; the server is pure .NET.
 
 ```bash
 docker build -t unity-mcp-server .
 ```
 
-### 2. Run with Volume Mount
+### 2. Run (stdio)
 
-Mount your Unity Editor's `Managed` folder to a directory inside the container (e.g., `/unity`) and set the `UNITY_PATH` environment variable.
+MCP uses stdio. Your MCP host (e.g. Claude Desktop, Cursor) should start the container with stdin/stdout connected, for example:
+
+```bash
+docker run -i --rm unity-mcp-server
+```
+
+### 3. Optional: Run with Unity Volume Mount
+
+If you later add Unity CLI integration, you can mount your Unity Editor's `Managed` folder and set `UNITY_PATH`:
 
 #### Windows (PowerShell)
 
@@ -42,39 +56,22 @@ docker run -it --rm \
 
 ## 🏗️ Technical Details
 
-In the `.csproj` file, we use a dynamic path that prioritizes the `UNITY_PATH` environment variable:
+- **Dockerfile**: Multi-stage build (SDK for build, runtime for final image). No Unity references; `UNITY_PATH` is reserved for future optional Unity CLI integration.
+- **Dev container**: `.devcontainer/devcontainer.json` uses `mcr.microsoft.com/devcontainers/dotnet:dev-10.0` and restores `Unity-MCP-Server.sln` on create.
 
-```xml
-<PropertyGroup>
-  <UnityManagedPath Condition="'$(UNITY_PATH)' != ''">$(UNITY_PATH)</UnityManagedPath>
-  <UnityEditorPath Condition="'$(UnityEditorPath)' == ''">$(UnityManagedPath)\UnityEditor.dll</UnityEditorPath>
-</PropertyGroup>
+## 📝 Configuration (Claude Desktop and other MCP hosts)
 
-<ItemGroup>
-  <Reference Include="UnityEditor">
-    <HintPath>$(UnityEditorPath)</HintPath>
-  </Reference>
-</ItemGroup>
-```
-
-## 📝 Configuration (Claude Desktop)
-
-When using Docker via Claude Desktop, you can configure it like this:
+Example MCP config using the Docker image (stdio; no port):
 
 ```json
 {
   "mcpServers": {
-    "unity-docker": {
+    "unity-mcp": {
       "command": "docker",
-      "args": [
-        "run",
-        "-i",
-        "--rm",
-        "-v", "C:/Program Files/Unity/Hub/Editor/6000.3.2f1/Editor/Data/Managed:/unity:ro",
-        "-e", "UNITY_PATH=/unity",
-        "unity-mcp-server"
-      ]
+      "args": ["run", "-i", "--rm", "unity-mcp-server"]
     }
   }
 }
 ```
+
+Optional: to pass a Unity mount and `UNITY_PATH`, add `-v` and `-e` to `args` as in the “Run with Unity Volume Mount” section 3 above. Full Docker MCP guide: **Docs/docker-mcp-setup.md**.

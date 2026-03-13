@@ -1,0 +1,36 @@
+# CodeQL security and quality analysis
+name: CodeQL
+
+on:
+  push:
+    branches: [main, develop, develop_v3]
+  pull_request:
+    branches: [main, develop, develop_v3]
+  schedule:
+    - cron: "0 0 * * 1"  # weekly Monday
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: csharp
+
+      - name: Build (for extraction)
+        run: |
+          dotnet restore Unity-MCP-Server.sln
+          dotnet build Unity-MCP-Server.sln -c Release --no-restore
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3

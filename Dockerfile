@@ -1,39 +1,32 @@
+# Unity MCP Server v3.0.0 — pure .NET, no Unity DLLs required.
+# Build and runtime stages for Windows, Linux, and macOS (stdio MCP).
+
 # Build Stage
-FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-# ARGs for build-time configuration
-ARG UNITY_PATH=/unity_libs
-
-# Copy solution and project files first for better caching
-COPY UnityMcpServer.slnx ./
+# Copy solution and project files first for better layer caching
+COPY Unity-MCP-Server.sln ./
 COPY UnityMcp.Core/UnityMcp.Core.csproj UnityMcp.Core/
 COPY UnityMcp.Infrastructure/UnityMcp.Infrastructure.csproj UnityMcp.Infrastructure/
 COPY UnityMcp.Application/UnityMcp.Application.csproj UnityMcp.Application/
-COPY UnityMcp.Server/UnityMcp.Server.csproj UnityMcp.Server/
+COPY UnityMCP.Server/UnityMCP.Server.csproj UnityMCP.Server/
 COPY UnityMcp.Tests/UnityMcp.Tests.csproj UnityMcp.Tests/
 
-# Note: For the build to succeed, Unity DLLs must be present in the build context
-# and mapped via /p:UNITY_PATH during restore/publish.
-RUN dotnet restore /p:UNITY_PATH=${UNITY_PATH}
+RUN dotnet restore Unity-MCP-Server.sln
 
-# Copy source code
+# Copy all source (includes Application partials, Docs, etc.)
 COPY . .
 
-# Build and Publish
-WORKDIR /src/UnityMcp.Server
-RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false /p:UNITY_PATH=${UNITY_PATH}
+# Build and publish the server (no tests in image)
+RUN dotnet publish UnityMCP.Server/UnityMCP.Server.csproj -c Release -o /app/publish --no-restore
 
 # Runtime Stage
-FROM mcr.microsoft.com/dotnet/runtime:10.0-alpine AS final
+FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 
-# Environment Variables
 ENV DOTNET_ENVIRONMENT=Production
-# Default to /unity for volume mounting at runtime
-ENV UNITY_PATH=/unity
 
-# Configuration
-# MCP uses Stdio, so we must run in a shell that keeps stdin open
-ENTRYPOINT ["dotnet", "UnityMcp.Server.dll"]
+# MCP uses stdio; no port exposure. Hosts (Claude Desktop, Cursor) start this with stdio connected.
+ENTRYPOINT ["dotnet", "UnityMCP.Server.dll"]
