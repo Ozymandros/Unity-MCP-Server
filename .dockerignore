@@ -15,7 +15,6 @@
 *.ps1
 *.sh
 *.txt
-Dockerfile
 docker-compose*.yml
 README.md
 QUICKSTART.md
