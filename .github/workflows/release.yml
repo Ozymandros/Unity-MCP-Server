@@ -8,7 +8,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  packages: write
+  contents: read
 
 jobs:
   test:
@@ -21,12 +22,6 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
-      - name: Debug workspace
-        run: |
-          git rev-parse --abbrev-ref HEAD || true
-          git rev-parse HEAD
-          git ls-files | sed -n '1,300p'
-          ls -la
       - run: dotnet restore Unity-MCP-Server.sln
       - run: dotnet build Unity-MCP-Server.sln -c Release --no-restore
       - run: dotnet test Unity-MCP-Server.sln --no-build -c Release
