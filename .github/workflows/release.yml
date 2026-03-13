@@ -16,9 +16,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
+      - name: Debug workspace
+        run: |
+          git rev-parse --abbrev-ref HEAD || true
+          git rev-parse HEAD
+          git ls-files | sed -n '1,300p'
+          ls -la
       - run: dotnet restore Unity-MCP-Server.sln
       - run: dotnet build Unity-MCP-Server.sln -c Release --no-restore
       - run: dotnet test Unity-MCP-Server.sln --no-build -c Release
@@ -30,6 +38,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -89,6 +99,8 @@ jobs:
       steps:
         - name: Checkout
           uses: actions/checkout@v4
+          with:
+            fetch-depth: 0
 
         - name: Set image name
           shell: bash

@@ -10,8 +10,8 @@ COPY Unity-MCP-Server.sln ./
 COPY UnityMcp.Core/UnityMcp.Core.csproj UnityMcp.Core/
 COPY UnityMcp.Infrastructure/UnityMcp.Infrastructure.csproj UnityMcp.Infrastructure/
 COPY UnityMcp.Application/UnityMcp.Application.csproj UnityMcp.Application/
-COPY UnityMCP.Server/UnityMCP.Server.csproj UnityMcp.Server/
-COPY UnityMcp.Tests/UnityMCP.Tests.csproj UnityMcp.Tests/
+COPY UnityMCP.Server/UnityMCP.Server.csproj UnityMCP.Server/
+COPY UnityMcp.Tests/UnityMcp.Tests.csproj UnityMcp.Tests/
 
 RUN dotnet restore Unity-MCP-Server.sln
 
