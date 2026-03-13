@@ -1,8 +1,21 @@
 # Unity MCP Server (.NET) v3.0.0
 
-[![CI](https://img.shields.io/github/actions/workflow/status/Ozymandros/Unity-MCP-Server/ci.yml?branch=main&label=CI&logo=dotnet&logoColor=white&style=flat-square)](https://github.com/Ozymandros/Unity-MCP-Server/actions/workflows/ci.yml)
-[![CodeQL](https://img.shields.io/github/actions/workflow/status/Ozymandros/Unity-MCP-Server/codeql.yml?branch=main&label=CodeQL&logo=github&style=flat-square)](https://github.com/Ozymandros/Unity-MCP-Server/actions/workflows/codeql.yml)
+<!-- Build & Quality -->
+[![CI](https://img.shields.io/github/actions/workflow/status/Ozymandros/Unity-MCP-Server/ci.yml?branch=master&label=CI&logo=dotnet&logoColor=white&style=flat-square)](https://github.com/Ozymandros/Unity-MCP-Server/actions/workflows/ci.yml)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/Ozymandros/Unity-MCP-Server/codeql.yml?branch=master&label=CodeQL&logo=github&style=flat-square)](https://github.com/Ozymandros/Unity-MCP-Server/actions/workflows/codeql.yml)
+[![Release](https://img.shields.io/github/actions/workflow/status/Ozymandros/Unity-MCP-Server/release.yml?branch=master&label=Release&logo=githubactions&logoColor=white&style=flat-square)](https://github.com/Ozymandros/Unity-MCP-Server/actions/workflows/release.yml)
+
+<!-- Distribution -->
+[![NuGet](https://img.shields.io/nuget/v/UnityMCP.Server?style=flat-square&logo=nuget&logoColor=white)](https://www.nuget.org/packages/UnityMCP.Server)
+[![Docker](https://img.shields.io/docker/v/ozymandros/unity-mcp-server?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/r/ozymandros/unity-mcp-server)
+[![GitHub Release](https://img.shields.io/github/v/release/Ozymandros/Unity-MCP-Server?display_name=tag&style=flat-square&logo=github)](https://github.com/Ozymandros/Unity-MCP-Server/releases)
+
+<!-- Ecosystem -->
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-orange?style=flat-square&logo=json)](https://modelcontextprotocol.io)
+[![MCP Inspector](https://img.shields.io/badge/MCP%20Inspector-supported-blue?style=flat-square&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=modelcontextprotocol.mcp-inspector)
+[![Docker MCP Setup](https://img.shields.io/badge/Docker%20MCP%20Setup-supported-blue?style=flat-square&logo=docker)](https://github.com/Ozymandros/Unity-MCP-Server/blob/master/Docs/docker-mcp-setup.md)
+
+<!-- Project -->
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square&logo=opensourceinitiative&logoColor=white)](https://opensource.org/licenses/MIT)
 
 A pure .NET Model Context Protocol (MCP) server for Unity Editor automation. Enables AI assistants and LLMs to scaffold projects, create scenes, scripts, prefabs, and manage assets with proper .meta sidecars — no Unity or UPM dependencies at build or runtime.
