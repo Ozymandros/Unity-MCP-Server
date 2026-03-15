@@ -573,6 +573,69 @@ public class {scriptName} : MonoBehaviour
         _logger.LogInformation("Audio saved at {Path} (with AudioImporter .meta)", filePath);
     }
 
+    /// <summary>
+    /// Apply a file change according to agent edit mode. Creates backups for edits and writes appropriate .meta sidecars.
+    /// Returns JSON: { success: bool, path: string, message: string }
+    /// </summary>
+    public async Task<string> ApplyFileChangeAsync(string projectPath, string fileName, string content, Core.Interfaces.IUnityService.AgentEditMode mode = Core.Interfaces.IUnityService.AgentEditMode.CreateOrEdit, CancellationToken cancellationToken = default)
+    {
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        bool exists = _fs.File.Exists(resolvedPath);
+
+        if (mode == Core.Interfaces.IUnityService.AgentEditMode.CreateOnly && exists)
+        {
+            var res = new { success = false, path = (string?)null, message = "File already exists and mode=CreateOnly" };
+            return JsonSerializer.Serialize(res);
+        }
+        if (mode == Core.Interfaces.IUnityService.AgentEditMode.EditOnly && !exists)
+        {
+            var res = new { success = false, path = (string?)null, message = "File does not exist and mode=EditOnly" };
+            return JsonSerializer.Serialize(res);
+        }
+
+        try
+        {
+            EnsureDirectoryExists(resolvedPath);
+
+            if (exists)
+            {
+                // create a lightweight timestamped backup
+                try
+                {
+                    string bak = resolvedPath + ".mcpbak" + DateTime.UtcNow.ToString("yyyyMMddHHmmss");
+                    _fs.File.Copy(resolvedPath, bak);
+                    _logger.LogInformation("Created backup {Bak} for {Path}", bak, resolvedPath);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to create backup for {Path}", resolvedPath);
+                }
+            }
+
+            await _fs.File.WriteAllTextAsync(resolvedPath, content, cancellationToken);
+
+            // Write appropriate .meta sidecar when possible
+            string ext = _fs.Path.GetExtension(resolvedPath).ToLowerInvariant();
+            if (ext == ".cs")
+                await _metaWriter.WriteScriptMetaAsync(resolvedPath, ct: cancellationToken);
+            else if (ext == ".png" || ext == ".jpg" || ext == ".jpeg")
+                await _metaWriter.WriteTextureMetaAsync(resolvedPath, ct: cancellationToken);
+            else if (ext == ".mp3" || ext == ".wav" || ext == ".ogg")
+                await _metaWriter.WriteAudioMetaAsync(resolvedPath, ct: cancellationToken);
+            else
+                await _metaWriter.WriteDefaultMetaAsync(resolvedPath, ct: cancellationToken);
+
+            var success = new { success = true, path = MakeProjectRelativePath(projectPath, resolvedPath), message = (string?)null };
+            return JsonSerializer.Serialize(success);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ApplyFileChange failed for {Path}", resolvedPath);
+            var error = new { success = false, path = (string?)null, message = ex.Message };
+            return JsonSerializer.Serialize(error);
+        }
+    }
+
     // -----------------------------------------------------------------------
     // Validation & package management
     // -----------------------------------------------------------------------

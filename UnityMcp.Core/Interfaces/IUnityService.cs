@@ -11,6 +11,18 @@ namespace UnityMcp.Core.Interfaces;
 public interface IUnityService
 {
     /// <summary>
+    /// How an agent should treat existing files when applying changes.
+    /// </summary>
+    public enum AgentEditMode
+    {
+        /// <summary>Create only; fail if file exists.</summary>
+        CreateOnly = 0,
+        /// <summary>Edit only; fail if file does not exist.</summary>
+        EditOnly = 1,
+        /// <summary>Create or edit as appropriate (auto).</summary>
+        CreateOrEdit = 2,
+    }
+    /// <summary>
     /// Checks if the specified path represents a valid Unity project.
     /// </summary>
     Task<bool> IsValidProjectAsync(string projectPath, CancellationToken cancellationToken = default);
@@ -123,6 +135,13 @@ public interface IUnityService
     /// Saves an audio clip (base64 MP3/WAV) with AudioImporter .meta. fileName = filename or path; no duplicate segments.
     /// </summary>
     Task SaveAudioAsync(string projectPath, string fileName, string base64Data, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Apply a file-level change where the agent chooses whether to create or edit.
+    /// Mode controls behavior when the file exists or not.
+    /// Returns a JSON status payload: success, path, message.
+    /// </summary>
+    Task<string> ApplyFileChangeAsync(string projectPath, string fileName, string content, AgentEditMode mode = AgentEditMode.CreateOrEdit, CancellationToken cancellationToken = default);
 
     // -----------------------------------------------------------------------
     // Validation & package management

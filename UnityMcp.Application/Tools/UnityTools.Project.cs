@@ -120,4 +120,24 @@ public static partial class UnityTools
         await unityService.SaveAudioAsync(projectPath, fileName, base64Data, cancellationToken);
         return "Audio saved (with .meta)";
     }
+
+    [McpServerTool(Name = "unity_apply_file_change"), Description(
+        "Apply or create/edit a file with agent-controlled mode: 'create', 'edit', or 'auto'. Returns JSON status.")]
+    public static async Task<string> ApplyFileChange(
+        IUnityService unityService,
+        [Description("Project root path")] string projectPath,
+        [Description("File name or path (e.g. Assets/Scripts/Player.cs)")] string fileName,
+        [Description("File content to write")] string content,
+        [Description("Mode: 'create' | 'edit' | 'auto' (default)")] string mode = "auto",
+        CancellationToken cancellationToken = default)
+    {
+        var editMode = mode?.Trim().ToLowerInvariant() switch
+        {
+            "create" => UnityMcp.Core.Interfaces.IUnityService.AgentEditMode.CreateOnly,
+            "edit" => UnityMcp.Core.Interfaces.IUnityService.AgentEditMode.EditOnly,
+            _ => UnityMcp.Core.Interfaces.IUnityService.AgentEditMode.CreateOrEdit,
+        };
+
+        return await unityService.ApplyFileChangeAsync(projectPath, fileName, content, editMode, cancellationToken);
+    }
 }
