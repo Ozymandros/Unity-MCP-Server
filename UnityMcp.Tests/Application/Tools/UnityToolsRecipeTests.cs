@@ -42,13 +42,13 @@ public class UnityToolsRecipeTests
         await _unityService.Received(1).ConfigureUrpAsync(@"C:\proj", Arg.Any<CancellationToken>());
         await _unityService.Received(1).CreateDefaultSceneAsync(@"C:\proj", "MainScene", Arg.Any<CancellationToken>());
         await _unityService.Received(1).ValidateImportAsync(@"C:\proj", Arg.Any<CancellationToken>());
-        await _unityService.DidNotReceive().ScaffoldProjectAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+        await _unityService.DidNotReceive().ScaffoldProjectAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task CreateCoreRecipe_WithProjectName_ScaffoldsThenRunsSteps()
     {
-        _unityService.ScaffoldProjectAsync("MyGame", Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+        _unityService.ScaffoldProjectAsync("MyGame", Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(@"C:\output\MyGame"));
         _unityService.InstallPackagesAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult("{\"success\":true,\"installed\":[],\"message\":null}"));
@@ -64,7 +64,7 @@ public class UnityToolsRecipeTests
         Assert.That(result, Does.Contain("\"success\":true"));
         Assert.That(result, Does.Contain("MyGame").And.Contain("output"));
         Assert.That(result, Does.Contain("\"scene_path\":\"Assets/Scenes/Game.unity\""));
-        await _unityService.Received(1).ScaffoldProjectAsync("MyGame", @"C:\output", null, Arg.Any<CancellationToken>());
+        await _unityService.Received(1).ScaffoldProjectAsync("MyGame", @"C:\output", null, Arg.Any<string?>(), Arg.Any<CancellationToken>());
         await _unityService.Received(1).InstallPackagesAsync(@"C:\output\MyGame", Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
     }
 
@@ -76,7 +76,7 @@ public class UnityToolsRecipeTests
         Assert.That(result, Does.Contain("\"success\":false"));
         Assert.That(result, Does.Contain("projectPath"));
         Assert.That(result, Does.Contain("projectName"));
-        await _unityService.DidNotReceive().ScaffoldProjectAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+        await _unityService.DidNotReceive().ScaffoldProjectAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Test]
@@ -106,7 +106,7 @@ public class UnityToolsRecipeTests
         await _unityService.Received(1).ConfigureUrpAsync(@"C:\proj", Arg.Any<CancellationToken>());
         await _unityService.Received(1).CreateDefaultSceneAsync(@"C:\proj", "MainScene", Arg.Any<CancellationToken>());
         await _unityService.Received(1).ValidateImportAsync(@"C:\proj", Arg.Any<CancellationToken>());
-        await _unityService.DidNotReceive().ScaffoldProjectAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+        await _unityService.DidNotReceive().ScaffoldProjectAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
         await _unityService.DidNotReceive().ConfigureNavmeshAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _unityService.DidNotReceive().CreateWaypointGraphAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _unityService.DidNotReceive().CreateInputActionsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -166,7 +166,7 @@ public class UnityToolsRecipeTests
     [Test]
     public async Task CreatePrototypeRecipe_WithScaffoldAndAllFeatures()
     {
-        _unityService.ScaffoldProjectAsync("PrototypeGame", Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+        _unityService.ScaffoldProjectAsync("PrototypeGame", Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(@"C:\out\PrototypeGame"));
         _unityService.InstallPackagesAsync(Arg.Any<string>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult("{\"success\":true,\"installed\":[],\"message\":null}"));
@@ -208,7 +208,7 @@ public class UnityToolsRecipeTests
         Assert.That(result, Does.Contain("create_vfx_asset"));
         Assert.That(result, Does.Contain("create_physics_setup"));
         Assert.That(result, Does.Contain("validate_import"));
-        await _unityService.Received(1).ScaffoldProjectAsync("PrototypeGame", @"C:\out", null, Arg.Any<CancellationToken>());
+        await _unityService.Received(1).ScaffoldProjectAsync("PrototypeGame", @"C:\out", null, Arg.Any<string?>(), Arg.Any<CancellationToken>());
         await _unityService.Received(1).ConfigureNavmeshAsync(@"C:\out\PrototypeGame", Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _unityService.Received(1).CreateWaypointGraphAsync(@"C:\out\PrototypeGame", "Assets/Data/PatrolRoute.waypoints.json", Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _unityService.Received(1).CreateInputActionsAsync(@"C:\out\PrototypeGame", "Assets/Input/PlayerControls.inputactions", Arg.Any<string>(), Arg.Any<CancellationToken>());

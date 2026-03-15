@@ -24,18 +24,18 @@ public class UnityToolsNewTests
     [Test]
     public async Task ScaffoldProject_CallsServiceAndReturnsPath()
     {
-        _unityService.ScaffoldProjectAsync("MyGame", null, null, Arg.Any<CancellationToken>())
+        _unityService.ScaffoldProjectAsync("MyGame", null, null, Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(@"C:\output\MyGame"));
 
         var result = await UnityTools.ScaffoldProject(_unityService, "MyGame");
         Assert.That(result, Does.Contain(@"C:\output\MyGame"));
-        await _unityService.Received(1).ScaffoldProjectAsync("MyGame", null, null, Arg.Any<CancellationToken>());
+        await _unityService.Received(1).ScaffoldProjectAsync("MyGame", null, null, Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Test]
     public async Task ScaffoldProject_WithOutputRoot_PassesThrough()
     {
-        _unityService.ScaffoldProjectAsync("Proj", @"D:\games", "2023.1.0f1", Arg.Any<CancellationToken>())
+        _unityService.ScaffoldProjectAsync("Proj", @"D:\games", "2023.1.0f1", Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(@"D:\games\Proj"));
 
         var result = await UnityTools.ScaffoldProject(_unityService, "Proj", @"D:\games", "2023.1.0f1");

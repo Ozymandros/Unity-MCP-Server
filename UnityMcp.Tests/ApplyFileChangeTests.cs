@@ -30,13 +30,13 @@ namespace UnityMcp.Tests
 
             string res1 = await svc.ApplyFileChangeAsync(project, fileName, content, IUnityService.AgentEditMode.CreateOnly, CancellationToken.None);
             var doc1 = JsonDocument.Parse(res1);
-            Assert.IsTrue(doc1.RootElement.GetProperty("success").GetBoolean());
-            Assert.IsTrue(fs.FileExists(PathCombine(project, "Assets/Scripts/Test.cs")));
+            Assert.That(doc1.RootElement.GetProperty("success").GetBoolean(), Is.True);
+            Assert.That(fs.FileExists(PathCombine(project, "Assets/Scripts/Test.cs")), Is.True);
 
             // second attempt with CreateOnly should fail
             string res2 = await svc.ApplyFileChangeAsync(project, fileName, "// changed", IUnityService.AgentEditMode.CreateOnly, CancellationToken.None);
             var doc2 = JsonDocument.Parse(res2);
-            Assert.IsFalse(doc2.RootElement.GetProperty("success").GetBoolean());
+            Assert.That(doc2.RootElement.GetProperty("success").GetBoolean(), Is.False);
         }
 
         private static string PathCombine(string a, string b) => (a + "/" + b).Replace('/', System.IO.Path.DirectorySeparatorChar);
