@@ -88,7 +88,7 @@ public interface IUnityService
     /// with all necessary .meta sidecars. Idempotent — reuses existing folder.
     /// Returns the absolute path to the project root.
     /// </summary>
-    Task<string> ScaffoldProjectAsync(string projectName, string? outputRoot = null, string? unityVersion = null, CancellationToken cancellationToken = default);
+    Task<string> ScaffoldProjectAsync(string projectName, string? outputRoot = null, string? unityVersion = null, string? template = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Returns project info: path, name, Unity version.

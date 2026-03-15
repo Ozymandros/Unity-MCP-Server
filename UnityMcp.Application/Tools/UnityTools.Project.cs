@@ -19,12 +19,15 @@ public static partial class UnityTools
         string outputRoot = "",
         [Description("Unity version for ProjectVersion.txt (default: 2022.3.0f1)")]
         string unityVersion = "",
+        [Description("Optional project template (e.g. \"urp\", \"hdrp\", \"2d\", \"vr\").")]
+        string template = "",
         CancellationToken cancellationToken = default)
     {
         string path = await unityService.ScaffoldProjectAsync(
             projectName,
             string.IsNullOrEmpty(outputRoot) ? null : outputRoot,
             string.IsNullOrEmpty(unityVersion) ? null : unityVersion,
+            string.IsNullOrWhiteSpace(template) ? null : template,
             cancellationToken);
         return $"Project scaffolded at {path}";
     }

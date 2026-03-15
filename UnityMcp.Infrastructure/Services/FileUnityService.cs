@@ -435,7 +435,7 @@ public class {scriptName} : MonoBehaviour
     // Project scaffolding & management
     // -----------------------------------------------------------------------
 
-    public async Task<string> ScaffoldProjectAsync(string projectName, string? outputRoot = null, string? unityVersion = null, CancellationToken cancellationToken = default)
+    public async Task<string> ScaffoldProjectAsync(string projectName, string? outputRoot = null, string? unityVersion = null, string? template = null, CancellationToken cancellationToken = default)
     {
         string root = outputRoot ?? _fs.Path.Combine(_fs.Directory.GetCurrentDirectory(), "output");
         string safeName = System.Text.RegularExpressions.Regex.Replace(projectName, @"[^a-zA-Z0-9_\-]", "_").Trim('_');
@@ -476,13 +476,8 @@ public class {scriptName} : MonoBehaviour
                 cancellationToken);
         }
 
-        // Packages/manifest.json
-        string manifestPath = _fs.Path.Combine(projectDir, "Packages", "manifest.json");
-        if (!_fs.File.Exists(manifestPath))
-        {
-            string manifest = "{\n  \"dependencies\": {}\n}";
-            await _fs.File.WriteAllTextAsync(manifestPath, manifest, cancellationToken);
-        }
+        // Packages/manifest.json (write template-appropriate dependencies)
+        await WritePackagesManifestAsync(projectDir, template, cancellationToken);
 
         // README
         string readmePath = _fs.Path.Combine(projectDir, "README.txt");
@@ -918,6 +913,48 @@ public class {scriptName} : MonoBehaviour
             }
         }
         return null;
+    }
+
+    private async Task WritePackagesManifestAsync(string projectDir, string? unityTemplate, CancellationToken cancellationToken = default)
+    {
+        string packagesDir = _fs.Path.Combine(projectDir, "Packages");
+        if (!_fs.Directory.Exists(packagesDir))
+            _fs.Directory.CreateDirectory(packagesDir);
+
+        // Template -> package dependencies mapping
+        var templatePackages = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["urp"] = new Dictionary<string, string>
+            {
+                ["com.unity.render-pipelines.universal"] = DefaultPackageVersions.TryGetValue("com.unity.render-pipelines.universal", out var v) ? v : ""
+            },
+            ["hdrp"] = new Dictionary<string, string>
+            {
+                ["com.unity.render-pipelines.high-definition"] = DefaultPackageVersions.TryGetValue("com.unity.render-pipelines.core", out var hv) ? hv : ""
+            },
+            ["vr"] = new Dictionary<string, string>
+            {
+                ["com.unity.xr.management"] = "4.0.1"
+            },
+            ["2d"] = new Dictionary<string, string>
+            {
+                ["com.unity.2d.sprite"] = "2.0.0"
+            }
+            // 3d and mobile intentionally map to empty dependencies
+        };
+
+        Dictionary<string, string> deps = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(unityTemplate) && templatePackages.TryGetValue(unityTemplate.Trim().ToLowerInvariant(), out var mapped))
+        {
+            foreach (var kv in mapped)
+                deps[kv.Key] = kv.Value;
+        }
+
+        var manifestObject = new Dictionary<string, object> { ["dependencies"] = deps };
+        string manifestPath = _fs.Path.Combine(packagesDir, "manifest.json");
+        string output = JsonSerializer.Serialize(manifestObject, new JsonSerializerOptions { WriteIndented = true });
+        await _fs.File.WriteAllTextAsync(manifestPath, output, cancellationToken);
+        _logger.LogInformation("Wrote manifest.json for template {Template} at {Path}", unityTemplate ?? "", manifestPath);
     }
 
     /// <summary>

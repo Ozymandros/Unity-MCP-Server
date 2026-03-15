@@ -44,7 +44,7 @@ public static partial class UnityTools
                 return JsonSerializer.Serialize(new { success = false, projectPath = (string?)null, scene_path = (string?)null, steps = steps, message = "Either projectPath or projectName must be provided." });
             try
             {
-                resolvedPath = await unityService.ScaffoldProjectAsync(projectName, string.IsNullOrWhiteSpace(outputRoot) ? null : outputRoot, null, cancellationToken);
+                resolvedPath = await unityService.ScaffoldProjectAsync(projectName, string.IsNullOrWhiteSpace(outputRoot) ? null : outputRoot, null, null, cancellationToken);
                 steps.Add(new { name = "scaffold", success = true, message = (string?)null });
             }
             catch (Exception ex)
@@ -184,7 +184,7 @@ public static partial class UnityTools
                 return JsonSerializer.Serialize(new { success = false, projectPath = (string?)null, scene_path = (string?)null, steps, message = "Either projectPath or projectName must be provided." });
             try
             {
-                resolvedPath = await unityService.ScaffoldProjectAsync(projectName, string.IsNullOrWhiteSpace(outputRoot) ? null : outputRoot, null, cancellationToken);
+                resolvedPath = await unityService.ScaffoldProjectAsync(projectName, string.IsNullOrWhiteSpace(outputRoot) ? null : outputRoot, null, null, cancellationToken);
                 steps.Add(new { name = "scaffold", success = true, message = (string?)null });
             }
             catch (Exception ex)
