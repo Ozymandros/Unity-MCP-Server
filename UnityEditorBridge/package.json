@@ -1,0 +1,10 @@
+{
+  "name": "com.unitymcp.bridge",
+  "version": "1.0.0",
+  "displayName": "Unity MCP Bridge",
+  "description": "Editor bridge for Unity MCP Server: live localhost and batch-mode command execution.",
+  "unity": "2021.3",
+  "author": {
+    "name": "Unity MCP Contributors"
+  }
+}

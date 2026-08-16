@@ -246,7 +246,7 @@ public class FileUnityServiceNewToolsTests
         string code = "using UnityEngine;\npublic class Player : MonoBehaviour {\n    void Start() { }";
         string result = await _service.ValidateCSharpAsync(code);
         Assert.That(result, Does.Contain("\"isValid\":false"));
-        Assert.That(result, Does.Contain("closing brace"));
+        Assert.That(result, Does.Contain("CS1513"));
     }
 
     [Test]
@@ -339,9 +339,84 @@ public class FileUnityServiceNewToolsTests
         string proj = await _service.ScaffoldProjectAsync("ValidateStub", @"C:\output");
         string json = await _service.ValidateImportAsync(proj);
 
-        Assert.That(json, Does.Contain("\"success\":true"));
-        Assert.That(json, Does.Contain("\"error_count\":0"));
+        Assert.That(json, Does.Contain("\"success\":false"));
+        Assert.That(json, Does.Contain("ValidateImport.EditorUnavailable"));
+        Assert.That(json, Does.Contain("\"error_count\":1"));
         Assert.That(json, Does.Contain("\"warning_count\":0"));
+    }
+
+    [Test]
+    public async Task ServerCapabilities_ReportFileOnlyWhenEditorUnavailable()
+    {
+        string info = await _service.GetServerInfoAsync();
+        string capabilities = await _service.GetCapabilitiesAsync();
+
+        Assert.That(info, Does.Contain("file-only"));
+        Assert.That(capabilities, Does.Contain("compatibility-surrogate"));
+    }
+
+    [Test]
+    public async Task SceneGraph_ListRenameAndDiff_WorkOnGeneratedScenes()
+    {
+        string proj = await _service.ScaffoldProjectAsync("SceneGraph", @"C:\output");
+        await _service.CreateSceneAsync(proj, "Assets/Scenes/A.unity");
+        await _service.CreateSceneAsync(proj, "Assets/Scenes/B.unity");
+
+        string list = await _service.ListSceneObjectsAsync(proj, "Assets/Scenes/A.unity");
+        Assert.That(list, Does.Contain("Main Camera"));
+
+        string rename = await _service.RenameSceneObjectAsync(proj, "Assets/Scenes/B.unity", "Main Camera", "Gameplay Camera");
+        Assert.That(rename, Does.Contain("\"success\":true"));
+
+        string diff = await _service.DiffSceneFilesAsync(proj, "Assets/Scenes/A.unity", "Assets/Scenes/B.unity");
+        Assert.That(diff, Does.Contain("Gameplay Camera"));
+    }
+
+    [Test]
+    public async Task AttachScript_AddsMonoBehaviourReference()
+    {
+        string proj = await _service.ScaffoldProjectAsync("AttachScript", @"C:\output");
+        await _service.CreateSceneAsync(proj, "Assets/Scenes/Main.unity");
+        await _service.SaveScriptAsync(proj, "Player.cs", "using UnityEngine;\npublic class Player : MonoBehaviour {}");
+
+        string result = await _service.AttachScriptAsync(proj, "Assets/Scenes/Main.unity", "Main Camera", "Assets/Scripts/Player.cs");
+
+        Assert.That(result, Does.Contain("\"success\":true"));
+        string sceneContent = _mockFs.File.ReadAllText(_mockFs.Path.Combine(proj, "Assets", "Scenes", "Main.unity"));
+        Assert.That(sceneContent, Does.Contain("MonoBehaviour:"));
+        Assert.That(sceneContent, Does.Contain("m_Script:"));
+    }
+
+    [Test]
+    public async Task AssetMetadataAndLint_ReportMetaAndReferences()
+    {
+        string proj = await _service.ScaffoldProjectAsync("AssetMeta", @"C:\output");
+        await _service.SaveTextAssetAsync(proj, "info.txt", "Hello");
+
+        string metadata = await _service.GetAssetMetadataAsync(proj, "Assets/Text/info.txt");
+        Assert.That(metadata, Does.Contain("\"hasMeta\":true"));
+
+        string lint = await _service.LintProjectAsync(proj);
+        Assert.That(lint, Does.Contain("\"success\":true"));
+    }
+
+    [Test]
+    public async Task PackageAndProjectSettingsTools_WriteExpectedFiles()
+    {
+        string proj = await _service.ScaffoldProjectAsync("Ecosystem", @"C:\output");
+        await _service.AddPackagesAsync(proj, "{\"com.unity.textmeshpro\":\"3.0.6\"}");
+
+        string packages = await _service.ListPackagesAsync(proj);
+        Assert.That(packages, Does.Contain("com.unity.textmeshpro"));
+
+        string remove = await _service.RemovePackagesAsync(proj, new[] { "com.unity.textmeshpro" });
+        Assert.That(remove, Does.Contain("removed"));
+
+        string settings = await _service.ConfigureProjectSettingsAsync(proj, "{\"tags\":[\"Generated\"],\"layers\":[\"Default\",\"UI\"]}");
+        Assert.That(settings, Does.Contain("\"success\":true"));
+
+        string profile = await _service.ConfigureBuildProfileAsync(proj, "{\"name\":\"WindowsDev\",\"target\":\"Win64\"}");
+        Assert.That(profile, Does.Contain("WindowsDev"));
     }
 
     [Test]
