@@ -3,6 +3,8 @@
 This document formalizes the **JSON contracts**, **error taxonomy**, and **observability requirements** for the Unity MCP server (v3.0.0+).
 It is designed to be **backwards compatible** with existing tools while adding structure and clarity.
 
+Current implementation note: the server exposes 80+ MCP tools. `unity_get_capabilities` is the source of truth for runtime mode: `native-file`, `partial-file`, `native-editor`, `compatibility-file`, `compatibility-surrogate`, or Editor-backed validation when `UNITY_EDITOR_PATH` / a live bridge is available. Use `unity_install_editor_bridge` to embed `com.unitymcp.bridge` into a project.
+
 ---
 
 ### Path and Directory Semantics
@@ -13,6 +15,7 @@ It is designed to be **backwards compatible** with existing tools while adding s
   - Automatically create any **missing parent directories** under `projectPath` before writing.
 - Callers are expected to ensure that `projectPath` itself exists or is created via `ScaffoldProjectAsync`.
 - Some tools (e.g. `ConfigureUrpAsync`, `ValidateImportAsync`) operate on existing Unity projects and expect core Unity files (e.g. `ProjectSettings/*.asset`) to be present; they do not fabricate those files if absent.
+- File and folder paths are containment-checked under `projectPath`; traversal, URI schemes, and out-of-project absolute paths are rejected.
 
 These rules ensure that:
 
@@ -58,6 +61,21 @@ All Unity MCP operations that can fail in a structured way SHOULD use the shared
 
 The following result types are defined under `UnityMcp.Core.Contracts` and used by `FileUnityService` for JSON-returning operations.
 Property names map directly to JSON fields.
+
+Many newer tools return the standard envelope:
+
+```json
+{
+  "success": true,
+  "message": "Human readable status.",
+  "data": {},
+  "errors": [],
+  "warnings": [],
+  "suggestedRemediation": null
+}
+```
+
+Older clients can continue reading legacy top-level fields such as `scene_path`, `prefab_path`, `path`, `native_path`, `error_count`, and `warning_count` where those tool contracts already exposed them.
 
 ### 2.1 InstallPackagesResult
 
@@ -200,7 +218,7 @@ Unexpected failure:
 
 - `UnityMcp.Core.Contracts.ImportValidationResult`
 
-**JSON shape (Phase 0 stub implementation)**
+**JSON shape**
 
 ```json
 {
@@ -209,11 +227,11 @@ Unexpected failure:
   "warning_count": 0,
   "errors": [],
   "warnings": [],
-  "message": "Stub: file-only server cannot run Unity compilation. Implement batch-mode validation when Unity is available."
+  "message": "Unity import validation completed."
 }
 ```
 
-**Future (Phase 1+) behavior**
+When `UNITY_EDITOR_PATH` is not configured or Unity cannot be found, `unity_validate_import` returns `success: false` with an `ExternalTool` error code `ValidateImport.EditorUnavailable`; it does not return a false success in file-only mode.
 
 - `error_count` and `warning_count` MUST match the lengths of `errors` and `warnings`.
 - Each error/warning SHOULD carry a structured `UnityMcpError` with appropriate `category` and `code`, e.g.:

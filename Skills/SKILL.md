@@ -88,21 +88,25 @@ Save AI-generated content into the correct Unity folder with the matching import
 
 ### 4. Validation & Packages
 
-- **C# Validation**: Lightweight syntax checking (balanced braces/parens, class keyword)
-- **UPM Packages**: Add packages to `Packages/manifest.json` via JSON merge
+- **C# Validation**: Roslyn syntax diagnostics plus type declaration checks
+- **Import Validation**: Hybrid Editor bridge (live localhost or batch mode) when `UNITY_EDITOR_PATH` / open Editor is available; otherwise returns an explicit `ExternalTool` error
+- **UPM Packages**: Add packages to `Packages/manifest.json` via JSON merge; Editor-backed search/resolve when bridge is available
+- **Editor bridge**: `unity_install_editor_bridge` embeds `com.unitymcp.bridge` for native scene/component/asset operations
 
 ### 5. DevOps & CI/CD
 
 - **Multi-platform builds**: Win64, OSX, Linux64, Android, iOS via Unity CLI batch mode
 - **Error reporting**: Build failures surfaced to the agent
 
-## 📖 Complete Tool Reference (26 tools)
+## 📖 Complete Tool Reference (80+ tools)
 
 ### 📡 Connectivity
 
 | Tool | Description | Parameters |
 |:---|:---|:---|
 | `ping` | Health check | None |
+| `unity_get_server_info` | Server version, transport, backend mode, Editor availability | None |
+| `unity_get_capabilities` | Capability manifest for native/file-only/compatibility modes | None |
 
 ### 🏗️ Project Scaffolding
 
@@ -120,6 +124,19 @@ Save AI-generated content into the correct Unity folder with the matching import
 | `unity_create_detailed_scene` | Full scene from JSON GameObjects array | `path`, `sceneJson` |
 | `unity_add_gameobject` | Append a GO to an existing scene | `scenePath`, `gameObjectJson` |
 | `unity_create_gameobject` | Simple named GO (legacy) | `scenePath`, `gameObjectName` |
+| `unity_scene_list_gameobjects` | List GameObjects/components in a scene or prefab | `projectPath`, `fileName` |
+| `unity_scene_add_gameobject` | Add GO under parent path (Editor-backed; file-only appends root) | `projectPath`, `fileName`, `parentPath`, `objectName` |
+| `unity_scene_reparent_gameobject` | Reparent GO (requires Editor) | `projectPath`, `fileName`, `objectPath`, `newParentPath` |
+| `unity_scene_get_properties` / `unity_scene_set_properties` | Inspect/update GO transform properties | `projectPath`, `fileName`, `objectPath`, `propertiesJson?` |
+| `unity_scene_set_active` | Enable/disable GameObject | `projectPath`, `fileName`, `objectPath`, `active` |
+| `unity_component_list\|add\|remove\|get\|set\|set_enabled` | Component lifecycle (Editor-backed) | `projectPath`, `fileName`, `objectPath`, `componentType`, … |
+| `unity_scene_rename_gameobject` | Rename a GameObject by name/path/fileID | `projectPath`, `fileName`, `objectPath`, `newName` |
+| `unity_scene_remove_gameobject` | Remove a GameObject and directly referenced components | `projectPath`, `fileName`, `objectPath` |
+| `unity_diff_scenes` | Structural diff between scenes/prefabs | `projectPath`, `fileNameA`, `fileNameB` |
+| `unity_attach_script` | Attach a script as a MonoBehaviour (Editor-backed when available) | `projectPath`, `fileName`, `objectPath`, `scriptFileName` |
+| `unity_instantiate_prefab` | PrefabUtility instantiate when Editor-backed; file-mode warning otherwise | `projectPath`, `sceneFileName`, `prefabFileName`, `instanceName` |
+| `unity_save_gameobject_as_prefab` | Save an object from a scene into a prefab | `projectPath`, `sceneFileName`, `objectPath`, `prefabFileName` |
+| `unity_install_editor_bridge` | Install `com.unitymcp.bridge` into the project | `projectPath` |
 
 ### 🧱 Asset Creation (with .meta sidecars)
 
@@ -146,13 +163,22 @@ Save AI-generated content into the correct Unity folder with the matching import
 | `unity_list_assets` | List files in directory | `path`, `pattern` |
 | `unity_read_asset` | Read file content | `path` |
 | `unity_delete_asset` | Delete file + .meta | `path` |
+| `unity_get_asset_metadata` | Asset GUID/type/meta/dependency metadata | `projectPath`, `fileName` |
+| `unity_list_asset_metadata` | Recursive asset metadata listing | `projectPath`, `folderName`, `pattern` |
+| `unity_move_asset` | Move/rename asset and .meta sidecar | `projectPath`, `sourceFileName`, `destinationFileName` |
+| `unity_update_material_properties` | Patch selected material YAML properties | `projectPath`, `fileName`, `propertiesJson` |
+| `unity_assign_material_texture` | Assign texture GUID to material property | `projectPath`, `materialFileName`, `textureFileName`, `propertyName` |
+| `unity_lint_project` | Static lint for missing .meta, broken GUIDs, missing scripts | `projectPath` |
 
 ### ✅ Validation & Packages
 
 | Tool | Description | Key Parameters |
 |:---|:---|:---|
-| `unity_validate_csharp` | Check C# syntax (braces, parens, class) → JSON result | `code` |
+| `unity_validate_csharp` | Roslyn syntax diagnostics → JSON result | `code` |
 | `unity_add_packages` | Add UPM packages to manifest.json | `projectPath`, `packagesJson` |
+| `unity_list_packages` | List manifest dependencies | `projectPath` |
+| `unity_remove_packages` | Remove package IDs from manifest | `projectPath`, `packages` |
+| `unity_verify_package_health` | Check manifest/lock health | `projectPath` |
 
 ### 🔌 MCP-Unity contract tools (JSON return)
 
@@ -163,7 +189,7 @@ All take `project_path` (absolute path to Unity project root). Return JSON for c
 | `unity_install_packages` | Install UPM packages by ID (add to manifest in order; default version if not sent) | `project_path`, `packages` (string[]) | `success`, `installed` (string[]), `message?` |
 | `unity_create_default_scene` | Default scene: Main Camera (0,1,-10, Skybox), Directional Light (50,-30,0), Ground plane (5,1,5); scene + Ground.prefab | `project_path`, `scene_name` | `success`, `scene_path?`, `prefab_path?`, `message?` |
 | `unity_configure_urp` | Linear color space, TagManager (tags Generated/AutoSetup, layers 8–9), default render pipeline | `project_path` | `success`, `message?` |
-| `unity_validate_import` | Asset refresh + script compilation; errors and warnings (file-only stub: success, 0 counts until Unity batch integrated) | `project_path` | `success`, `error_count`, `warning_count`, `errors?`, `warnings?`, `message?` |
+| `unity_validate_import` | Asset refresh + script compilation through Unity batch mode when `UNITY_EDITOR_PATH` is set | `project_path` | `success`, `error_count`, `warning_count`, `errors?`, `warnings?`, `message?` |
 
 On failure for any tool: `success: false` and `message` (and tool-specific fields as applicable).
 
@@ -172,6 +198,12 @@ On failure for any tool: `success: false` and `message` (and tool-specific field
 | Tool | Description | Key Parameters |
 |:---|:---|:---|
 | `unity_build_project` | Unity CLI batch build | `target`, `outputPath` |
+| `unity_configure_project_settings` | Safe ProjectSettings sidecar and selected tag/layer patching | `projectPath`, `settingsJson` |
+| `unity_configure_build_profile` | Build profile JSON asset under Assets/Settings | `projectPath`, `profileJson` |
+| `unity_query_documentation` | Search local README, Docs, and Skills markdown | `query`, `maxResults` |
+| `unity_camera_list` / `unity_camera_validate` | Camera domain listing/validation | `projectPath`, `folderName?` |
+| `unity_light_list` / `unity_light_validate` | Light domain listing/validation | `projectPath`, `folderName?` |
+| `unity_physics_list` / `unity_physics_validate` | Rigidbody/collider listing/validation | `projectPath`, `folderName?` |
 
 ## 📦 GameObject JSON Format
 
