@@ -1,9 +1,9 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using ModelContextProtocol.Server;
 using System.IO.Abstractions;
 using UnityMcp.Core.Interfaces;
+using UnityMcp.Infrastructure.Editor;
 using UnityMcp.Infrastructure.Services;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -17,6 +17,7 @@ builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
 builder.Services.AddSingleton<IFileSystem, FileSystem>();
 builder.Services.AddSingleton<IProcessRunner, ProcessRunner>();
+builder.Services.AddSingleton<IUnityEditorExecutor, UnityMcp.Infrastructure.Editor.UnityEditorExecutor>();
 builder.Services.AddSingleton<IUnityService, FileUnityService>();
 
 builder.Services

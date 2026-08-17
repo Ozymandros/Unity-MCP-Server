@@ -4,9 +4,12 @@ using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.Logging;
 using UnityMcp.Core.Contracts;
 using UnityMcp.Core.Interfaces;
@@ -25,6 +28,7 @@ public class FileUnityService : IUnityService
     private readonly IProcessRunner _processRunner;
     private readonly IFileSystem _fs;
     private readonly MetaFileWriter _metaWriter;
+    private readonly IUnityEditorExecutor? _editorExecutor;
     private string? _projectPath;
 
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -38,12 +42,17 @@ public class FileUnityService : IUnityService
         public IReadOnlyList<AnimatorLayerContract> Layers { get; init; } = new List<AnimatorLayerContract>();
     }
 
-    public FileUnityService(ILogger<FileUnityService> logger, IProcessRunner processRunner, IFileSystem? fileSystem = null)
+    public FileUnityService(
+        ILogger<FileUnityService> logger,
+        IProcessRunner processRunner,
+        IFileSystem? fileSystem = null,
+        IUnityEditorExecutor? editorExecutor = null)
     {
         _logger = logger;
         _processRunner = processRunner;
         _fs = fileSystem ?? new FileSystem();
         _metaWriter = new MetaFileWriter(_fs);
+        _editorExecutor = editorExecutor;
     }
 
     public Task<bool> IsValidProjectAsync(string projectPath, CancellationToken cancellationToken = default)
@@ -51,6 +60,72 @@ public class FileUnityService : IUnityService
         _projectPath = projectPath;
         bool isValid = _fs.Directory.Exists(_fs.Path.Combine(projectPath, "Assets"));
         return Task.FromResult(isValid);
+    }
+
+    public Task<string> GetServerInfoAsync(CancellationToken cancellationToken = default)
+    {
+        string? editorPath = _editorExecutor?.FindUnityExecutable() ?? TryFindUnityExecutable();
+        bool liveConnected = false;
+        if (!string.IsNullOrWhiteSpace(_projectPath) && _editorExecutor is not null)
+            _editorExecutor.TryGetLiveBridgeStatus(_projectPath, out liveConnected, out _);
+
+        var info = new UnityServerInfo
+        {
+            Version = typeof(FileUnityService).Assembly.GetName().Version?.ToString() ?? "unknown",
+            Backend = editorPath is null ? "file-only" : liveConnected ? "file+live-editor" : "file+unity-editor",
+            EditorAvailable = editorPath is not null || liveConnected,
+            EditorPath = editorPath,
+            LiveBridgeConnected = liveConnected,
+        };
+
+        return Task.FromResult(JsonSerializer.Serialize(info));
+    }
+
+    public Task<string> GetCapabilitiesAsync(CancellationToken cancellationToken = default)
+    {
+        string? editorPath = _editorExecutor?.FindUnityExecutable() ?? TryFindUnityExecutable();
+        bool liveConnected = false;
+        if (!string.IsNullOrWhiteSpace(_projectPath) && _editorExecutor is not null)
+            _editorExecutor.TryGetLiveBridgeStatus(_projectPath, out liveConnected, out _);
+        bool editorBacked = editorPath is not null || liveConnected;
+
+        var manifest = new UnityCapabilityManifest
+        {
+            Server = new UnityServerInfo
+            {
+                Version = typeof(FileUnityService).Assembly.GetName().Version?.ToString() ?? "unknown",
+                Backend = editorPath is null ? "file-only" : liveConnected ? "file+live-editor" : "file+unity-editor",
+                EditorAvailable = editorBacked,
+                EditorPath = editorPath,
+                LiveBridgeConnected = liveConnected,
+            },
+            Capabilities =
+            [
+                new UnityCapability { Name = "project", Status = "native-file", Description = "Scaffold projects, folders, packages, and safe ProjectSettings sidecar data." },
+                new UnityCapability { Name = "scene-graph", Status = editorBacked ? "native-editor" : "partial-file", Description = "Hierarchy CRUD, component inspect/update, and prefab workflows. Editor-backed when UNITY_EDITOR_PATH or a live bridge is available." },
+                new UnityCapability { Name = "assets", Status = editorBacked ? "native-editor" : "native-file", Description = "Create/read/move/delete assets with .meta sidecars; Editor uses AssetDatabase for reference-preserving moves." },
+                new UnityCapability { Name = "validation", Status = editorBacked ? "roslyn+unity-editor" : "roslyn+file-lint", Description = "Roslyn syntax diagnostics, project lint, and Unity batch/live import validation when an Editor is available." },
+                new UnityCapability { Name = "ui", Status = editorBacked ? "native-editor" : "compatibility-file", Description = "UGUI Canvas/RectTransform/Graphic operations via Editor bridge; file-only mode remains compatibility YAML." },
+                new UnityCapability { Name = "advanced-systems", Status = editorBacked ? "native-editor" : "compatibility-surrogate", Description = "Animator, Timeline, VFX, NavMesh, Input System native writers when Editor-backed; JSON surrogates otherwise." },
+            ],
+            Notes =
+            [
+                "File-only mode cannot prove Unity importability. Use unity_validate_import with UNITY_EDITOR_PATH or an open Editor bridge for authoritative validation.",
+                "JSON surrogate tools remain compatibility surfaces until native Editor-backed writers are used.",
+                "Call unity_install_editor_bridge (or any native op) to embed com.unitymcp.bridge into the target project.",
+            ],
+        };
+
+        return Task.FromResult(JsonSerializer.Serialize(manifest));
+    }
+
+    public async Task EnsureEditorBridgeInstalledAsync(string projectPath, CancellationToken cancellationToken = default)
+    {
+        _projectPath = projectPath;
+        if (_editorExecutor is null)
+            throw new InvalidOperationException("No Unity Editor executor is registered. Register IUnityEditorExecutor in DI.");
+
+        await _editorExecutor.EnsureBridgeInstalledAsync(projectPath, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task CreateSceneAsync(string projectPath, string fileName, CancellationToken cancellationToken = default)
@@ -220,6 +295,255 @@ public class {scriptName} : MonoBehaviour
             _logger.LogWarning("File not found for deletion: {Path}", resolvedPath);
         }
         return Task.CompletedTask;
+    }
+
+    public async Task<string> ListSceneObjectsAsync(string projectPath, string fileName, CancellationToken cancellationToken = default)
+    {
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        if (!_fs.File.Exists(resolvedPath))
+            return SerializeFailure<UnitySceneGraph>("SceneGraph.NotFound", $"Scene or prefab not found: {resolvedPath}", UnityMcpErrorCategory.Io);
+
+        string content = await _fs.File.ReadAllTextAsync(resolvedPath, cancellationToken);
+        var graph = BuildSceneGraph(projectPath, resolvedPath, content);
+        return JsonSerializer.Serialize(new ToolResultEnvelope<UnitySceneGraph>
+        {
+            Success = true,
+            Data = graph,
+            Message = "Scene graph listed.",
+        });
+    }
+
+    public async Task<string> RenameSceneObjectAsync(string projectPath, string fileName, string objectPath, string newName, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(objectPath))
+            return SerializeFailure<object>("SceneGraph.InvalidObjectPath", "objectPath is required.", UnityMcpErrorCategory.Validation);
+        if (string.IsNullOrWhiteSpace(newName))
+            return SerializeFailure<object>("SceneGraph.InvalidName", "newName is required.", UnityMcpErrorCategory.Validation);
+
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        if (!_fs.File.Exists(resolvedPath))
+            return SerializeFailure<object>("SceneGraph.NotFound", $"Scene or prefab not found: {resolvedPath}", UnityMcpErrorCategory.Io);
+
+        string content = await _fs.File.ReadAllTextAsync(resolvedPath, cancellationToken);
+        var graph = BuildSceneGraph(projectPath, resolvedPath, content);
+        var target = FindSceneObject(graph, objectPath);
+        if (target is null)
+            return SerializeFailure<object>("SceneGraph.ObjectNotFound", $"GameObject '{objectPath}' was not found.", UnityMcpErrorCategory.Validation);
+
+        string updated = ReplaceGameObjectName(content, target.FileId, newName.Trim());
+        await _fs.File.WriteAllTextAsync(resolvedPath, updated, cancellationToken);
+        return JsonSerializer.Serialize(new ToolResultEnvelope<object>
+        {
+            Success = true,
+            Message = $"Renamed '{objectPath}' to '{newName.Trim()}'.",
+            Data = new { path = MakeProjectRelativePath(projectPath, resolvedPath), objectPath, newName = newName.Trim() },
+        });
+    }
+
+    public async Task<string> RemoveSceneObjectAsync(string projectPath, string fileName, string objectPath, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(objectPath))
+            return SerializeFailure<object>("SceneGraph.InvalidObjectPath", "objectPath is required.", UnityMcpErrorCategory.Validation);
+
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        if (!_fs.File.Exists(resolvedPath))
+            return SerializeFailure<object>("SceneGraph.NotFound", $"Scene or prefab not found: {resolvedPath}", UnityMcpErrorCategory.Io);
+
+        string content = await _fs.File.ReadAllTextAsync(resolvedPath, cancellationToken);
+        var graph = BuildSceneGraph(projectPath, resolvedPath, content);
+        var target = FindSceneObject(graph, objectPath);
+        if (target is null)
+            return SerializeFailure<object>("SceneGraph.ObjectNotFound", $"GameObject '{objectPath}' was not found.", UnityMcpErrorCategory.Validation);
+
+        string updated = RemoveYamlDocumentsForObject(content, target.FileId);
+        await _fs.File.WriteAllTextAsync(resolvedPath, updated, cancellationToken);
+        return JsonSerializer.Serialize(new ToolResultEnvelope<object>
+        {
+            Success = true,
+            Message = $"Removed GameObject '{objectPath}'.",
+            Data = new { path = MakeProjectRelativePath(projectPath, resolvedPath), objectPath },
+        });
+    }
+
+    public async Task<string> DiffSceneFilesAsync(string projectPath, string fileNameA, string fileNameB, CancellationToken cancellationToken = default)
+    {
+        if (IsEditorAvailable(projectPath))
+        {
+            return await _editorExecutor!.ExecuteAsync(projectPath, "scene.diff",
+                new Dictionary<string, object?>
+                {
+                    ["fileNameA"] = ToProjectRelative(projectPath, fileNameA),
+                    ["fileNameB"] = ToProjectRelative(projectPath, fileNameB),
+                }, cancellationToken).ConfigureAwait(false);
+        }
+
+        string pathA = ResolvePath(projectPath, fileNameA);
+        string pathB = ResolvePath(projectPath, fileNameB);
+        if (!_fs.File.Exists(pathA) || !_fs.File.Exists(pathB))
+            return SerializeFailure<UnitySceneDiff>("SceneDiff.NotFound", "Both scene or prefab files must exist.", UnityMcpErrorCategory.Io);
+
+        var graphA = BuildSceneGraph(projectPath, pathA, await _fs.File.ReadAllTextAsync(pathA, cancellationToken));
+        var graphB = BuildSceneGraph(projectPath, pathB, await _fs.File.ReadAllTextAsync(pathB, cancellationToken));
+        var byNameA = graphA.Objects.ToDictionary(o => o.Path, StringComparer.OrdinalIgnoreCase);
+        var byNameB = graphB.Objects.ToDictionary(o => o.Path, StringComparer.OrdinalIgnoreCase);
+
+        var modified = new List<string>();
+        foreach (string key in byNameA.Keys.Intersect(byNameB.Keys, StringComparer.OrdinalIgnoreCase))
+        {
+            var left = byNameA[key];
+            var right = byNameB[key];
+            if (!left.Components.SequenceEqual(right.Components) || !DictionaryEquals(left.Properties, right.Properties))
+                modified.Add(key);
+        }
+
+        var diff = new UnitySceneDiff
+        {
+            Added = byNameB.Keys.Except(byNameA.Keys, StringComparer.OrdinalIgnoreCase).OrderBy(x => x).ToArray(),
+            Removed = byNameA.Keys.Except(byNameB.Keys, StringComparer.OrdinalIgnoreCase).OrderBy(x => x).ToArray(),
+            Modified = modified.OrderBy(x => x).ToArray(),
+        };
+
+        return JsonSerializer.Serialize(new ToolResultEnvelope<UnitySceneDiff>
+        {
+            Success = true,
+            Data = diff,
+            Message = "Scene diff completed.",
+        });
+    }
+
+    public async Task<string> AttachScriptAsync(string projectPath, string fileName, string objectPath, string scriptFileName, CancellationToken cancellationToken = default)
+    {
+        if (IsEditorAvailable(projectPath))
+        {
+            return await _editorExecutor!.ExecuteAsync(projectPath, "scene.attach_script",
+                new Dictionary<string, object?>
+                {
+                    ["fileName"] = ToProjectRelative(projectPath, fileName),
+                    ["objectPath"] = objectPath,
+                    ["scriptPath"] = ToProjectRelative(projectPath, scriptFileName),
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        string scenePath = ResolvePath(projectPath, fileName);
+        string scriptPath = ResolvePath(projectPath, scriptFileName);
+        if (!_fs.File.Exists(scenePath))
+            return SerializeFailure<object>("AttachScript.SceneNotFound", $"Scene or prefab not found: {scenePath}", UnityMcpErrorCategory.Io);
+        if (!_fs.File.Exists(scriptPath))
+            return SerializeFailure<object>("AttachScript.ScriptNotFound", $"Script not found: {scriptPath}", UnityMcpErrorCategory.Io);
+
+        string? scriptGuid = TryReadGuid(scriptPath + ".meta");
+        if (string.IsNullOrWhiteSpace(scriptGuid))
+            return SerializeFailure<object>("AttachScript.MissingGuid", $"Script meta GUID not found: {scriptPath}.meta", UnityMcpErrorCategory.Validation);
+
+        string content = await _fs.File.ReadAllTextAsync(scenePath, cancellationToken);
+        var graph = BuildSceneGraph(projectPath, scenePath, content);
+        var target = FindSceneObject(graph, objectPath);
+        if (target is null)
+            return SerializeFailure<object>("AttachScript.ObjectNotFound", $"GameObject '{objectPath}' was not found.", UnityMcpErrorCategory.Validation);
+
+        long componentFileId = NextYamlFileId(content);
+        string updated = AddComponentReference(content, target.FileId, componentFileId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        updated += $$"""
+
+--- !u!114 &{{componentFileId}}
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_GameObject: {fileID: {{target.FileId}}}
+  m_Enabled: 1
+  m_Script: {fileID: 11500000, guid: {{scriptGuid}}, type: 3}
+  m_Name: 
+
+""";
+        await _fs.File.WriteAllTextAsync(scenePath, updated, cancellationToken);
+
+        return JsonSerializer.Serialize(new ToolResultEnvelope<object>
+        {
+            Success = true,
+            Message = $"Attached script '{scriptFileName}' to '{objectPath}'.",
+            Data = new { scene = MakeProjectRelativePath(projectPath, scenePath), script = MakeProjectRelativePath(projectPath, scriptPath), objectPath },
+        });
+    }
+
+    public async Task<string> InstantiatePrefabAsync(string projectPath, string sceneFileName, string prefabFileName, string instanceName, CancellationToken cancellationToken = default)
+    {
+        if (IsEditorAvailable(projectPath))
+        {
+            return await _editorExecutor!.ExecuteAsync(projectPath, "scene.instantiate_prefab",
+                new Dictionary<string, object?>
+                {
+                    ["fileName"] = ToProjectRelative(projectPath, sceneFileName),
+                    ["prefabPath"] = ToProjectRelative(projectPath, prefabFileName),
+                    ["instanceName"] = instanceName,
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        string scenePath = ResolvePath(projectPath, sceneFileName);
+        string prefabPath = ResolvePath(projectPath, prefabFileName);
+        if (!_fs.File.Exists(scenePath))
+            return SerializeFailure<object>("Prefab.SceneNotFound", $"Scene not found: {scenePath}", UnityMcpErrorCategory.Io);
+        if (!_fs.File.Exists(prefabPath))
+            return SerializeFailure<object>("Prefab.NotFound", $"Prefab not found: {prefabPath}", UnityMcpErrorCategory.Io);
+
+        string? prefabGuid = TryReadGuid(prefabPath + ".meta");
+        if (string.IsNullOrWhiteSpace(prefabGuid))
+            return SerializeFailure<object>("Prefab.MissingGuid", $"Prefab meta GUID not found: {prefabPath}.meta", UnityMcpErrorCategory.Validation);
+
+        var go = new GameObjectDef { Name = string.IsNullOrWhiteSpace(instanceName) ? _fs.Path.GetFileNameWithoutExtension(prefabPath) : instanceName.Trim() };
+        string content = await _fs.File.ReadAllTextAsync(scenePath, cancellationToken);
+        string fragment = UnityYamlWriter.WriteGameObjectFragment(go) + $"# Prefab source: {{guid: {prefabGuid}, path: {MakeProjectRelativePath(projectPath, prefabPath)}}}\n";
+        await _fs.File.WriteAllTextAsync(scenePath, content + fragment, cancellationToken);
+
+        return JsonSerializer.Serialize(new ToolResultEnvelope<object>
+        {
+            Success = true,
+            Message = $"Instantiated prefab '{prefabFileName}' as '{go.Name}'.",
+            Data = new { scene = MakeProjectRelativePath(projectPath, scenePath), prefab = MakeProjectRelativePath(projectPath, prefabPath), instanceName = go.Name },
+            Warnings =
+            [
+                new UnityMcpError { Category = UnityMcpErrorCategory.Contract, Code = "Prefab.LinkedInstancePartial", Message = "File-only mode appends a GameObject plus prefab source metadata; use Editor validation for full PrefabInstance fidelity." }
+            ],
+        });
+    }
+
+    public async Task<string> SaveObjectAsPrefabAsync(string projectPath, string sceneFileName, string objectPath, string prefabFileName, CancellationToken cancellationToken = default)
+    {
+        if (IsEditorAvailable(projectPath))
+        {
+            return await _editorExecutor!.ExecuteAsync(projectPath, "scene.save_as_prefab",
+                new Dictionary<string, object?>
+                {
+                    ["fileName"] = ToProjectRelative(projectPath, sceneFileName),
+                    ["objectPath"] = objectPath,
+                    ["prefabPath"] = ToProjectRelative(projectPath, prefabFileName),
+                }, cancellationToken).ConfigureAwait(false);
+        }
+
+        string scenePath = ResolvePath(projectPath, sceneFileName);
+        string prefabPath = ResolvePath(projectPath, prefabFileName);
+        if (!_fs.File.Exists(scenePath))
+            return SerializeFailure<object>("Prefab.SceneNotFound", $"Scene not found: {scenePath}", UnityMcpErrorCategory.Io);
+
+        string content = await _fs.File.ReadAllTextAsync(scenePath, cancellationToken);
+        var graph = BuildSceneGraph(projectPath, scenePath, content);
+        var target = FindSceneObject(graph, objectPath);
+        if (target is null)
+            return SerializeFailure<object>("Prefab.ObjectNotFound", $"GameObject '{objectPath}' was not found.", UnityMcpErrorCategory.Validation);
+
+        string yaml = ExtractYamlDocumentsForObject(content, target.FileId);
+        if (string.IsNullOrWhiteSpace(yaml))
+            yaml = UnityYamlWriter.WritePrefab(new GameObjectDef { Name = target.Name });
+        EnsureDirectoryExists(prefabPath);
+        await _fs.File.WriteAllTextAsync(prefabPath, UnityYamlWriter.Header() + yaml, cancellationToken);
+        await _metaWriter.WriteDefaultMetaAsync(prefabPath, ct: cancellationToken);
+
+        return JsonSerializer.Serialize(new ToolResultEnvelope<object>
+        {
+            Success = true,
+            Message = $"Saved '{objectPath}' as prefab.",
+            Data = new { prefab = MakeProjectRelativePath(projectPath, prefabPath), source = objectPath },
+        });
     }
 
     // -----------------------------------------------------------------------
@@ -577,17 +901,17 @@ public class {scriptName} : MonoBehaviour
     /// Apply a file change according to agent edit mode. Creates backups for edits and writes appropriate .meta sidecars.
     /// Returns JSON: { success: bool, path: string, message: string }
     /// </summary>
-    public async Task<string> ApplyFileChangeAsync(string projectPath, string fileName, string content, Core.Interfaces.IUnityService.AgentEditMode mode = Core.Interfaces.IUnityService.AgentEditMode.CreateOrEdit, CancellationToken cancellationToken = default)
+    public async Task<string> ApplyFileChangeAsync(string projectPath, string fileName, string content, IUnityService.AgentEditMode mode = IUnityService.AgentEditMode.CreateOrEdit, CancellationToken cancellationToken = default)
     {
         string resolvedPath = ResolvePath(projectPath, fileName);
         bool exists = _fs.File.Exists(resolvedPath);
 
-        if (mode == Core.Interfaces.IUnityService.AgentEditMode.CreateOnly && exists)
+        if (mode == IUnityService.AgentEditMode.CreateOnly && exists)
         {
             var res = new { success = false, path = (string?)null, message = "File already exists and mode=CreateOnly" };
             return JsonSerializer.Serialize(res);
         }
-        if (mode == Core.Interfaces.IUnityService.AgentEditMode.EditOnly && !exists)
+        if (mode == IUnityService.AgentEditMode.EditOnly && !exists)
         {
             var res = new { success = false, path = (string?)null, message = "File does not exist and mode=EditOnly" };
             return JsonSerializer.Serialize(res);
@@ -599,7 +923,6 @@ public class {scriptName} : MonoBehaviour
 
             if (exists)
             {
-                // create a lightweight timestamped backup
                 try
                 {
                     string bak = resolvedPath + ".mcpbak" + DateTime.UtcNow.ToString("yyyyMMddHHmmss");
@@ -614,7 +937,6 @@ public class {scriptName} : MonoBehaviour
 
             await _fs.File.WriteAllTextAsync(resolvedPath, content, cancellationToken);
 
-            // Write appropriate .meta sidecar when possible
             string ext = _fs.Path.GetExtension(resolvedPath).ToLowerInvariant();
             if (ext == ".cs")
                 await _metaWriter.WriteScriptMetaAsync(resolvedPath, ct: cancellationToken);
@@ -636,44 +958,239 @@ public class {scriptName} : MonoBehaviour
         }
     }
 
+    public Task<string> GetAssetMetadataAsync(string projectPath, string fileName, CancellationToken cancellationToken = default)
+    {
+        string resolvedPath = ResolvePath(projectPath, fileName);
+        if (!_fs.File.Exists(resolvedPath))
+            return Task.FromResult(SerializeFailure<UnityAssetMetadata>("Asset.NotFound", $"Asset not found: {resolvedPath}", UnityMcpErrorCategory.Io));
+
+        var metadata = BuildAssetMetadata(projectPath, resolvedPath);
+        return Task.FromResult(JsonSerializer.Serialize(new ToolResultEnvelope<UnityAssetMetadata>
+        {
+            Success = true,
+            Data = metadata,
+            Message = "Asset metadata read.",
+        }));
+    }
+
+    public Task<string> ListAssetMetadataAsync(string projectPath, string folderName = "Assets", string searchPattern = "*", CancellationToken cancellationToken = default)
+    {
+        string folderPath = ResolvePath(projectPath, string.IsNullOrWhiteSpace(folderName) ? "Assets" : folderName);
+        if (!_fs.Directory.Exists(folderPath))
+            return Task.FromResult(SerializeFailure<IReadOnlyList<UnityAssetMetadata>>("Asset.FolderNotFound", $"Folder not found: {folderPath}", UnityMcpErrorCategory.Io));
+
+        var assets = _fs.Directory.EnumerateFiles(folderPath, string.IsNullOrWhiteSpace(searchPattern) ? "*" : searchPattern, SearchOption.AllDirectories)
+            .Where(path => !path.EndsWith(".meta", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .Select(path => BuildAssetMetadata(projectPath, path))
+            .ToArray();
+
+        return Task.FromResult(JsonSerializer.Serialize(new ToolResultEnvelope<IReadOnlyList<UnityAssetMetadata>>
+        {
+            Success = true,
+            Data = assets,
+            Message = $"Listed {assets.Length} assets.",
+        }));
+    }
+
+    public Task<string> MoveAssetAsync(string projectPath, string sourceFileName, string destinationFileName, CancellationToken cancellationToken = default)
+        => PreferEditorAsync(projectPath, "asset.move",
+            new Dictionary<string, object?>
+            {
+                ["sourceFileName"] = ToProjectRelative(projectPath, sourceFileName),
+                ["destinationFileName"] = ToProjectRelative(projectPath, destinationFileName),
+            },
+            () => MoveAssetFileOnlyAsync(projectPath, sourceFileName, destinationFileName),
+            cancellationToken);
+
+    private Task<string> MoveAssetFileOnlyAsync(string projectPath, string sourceFileName, string destinationFileName)
+    {
+        string source = ResolvePath(projectPath, sourceFileName);
+        string destination = ResolvePath(projectPath, destinationFileName);
+        if (!_fs.File.Exists(source))
+            return Task.FromResult(SerializeFailure<object>("Asset.NotFound", $"Source asset not found: {source}", UnityMcpErrorCategory.Io));
+        if (_fs.File.Exists(destination))
+            return Task.FromResult(SerializeFailure<object>("Asset.Exists", $"Destination already exists: {destination}", UnityMcpErrorCategory.Validation));
+
+        EnsureDirectoryExists(destination);
+        _fs.File.Move(source, destination);
+        if (_fs.File.Exists(source + ".meta"))
+            _fs.File.Move(source + ".meta", destination + ".meta");
+
+        return Task.FromResult(JsonSerializer.Serialize(new ToolResultEnvelope<object>
+        {
+            Success = true,
+            Message = "Asset moved.",
+            Data = new { source = MakeProjectRelativePath(projectPath, source), destination = MakeProjectRelativePath(projectPath, destination) },
+        }));
+    }
+
+    public async Task<string> UpdateMaterialPropertiesAsync(string projectPath, string fileName, string propertiesJson, CancellationToken cancellationToken = default)
+    {
+        string materialPath = ResolvePath(projectPath, fileName);
+        if (!_fs.File.Exists(materialPath))
+            return SerializeFailure<object>("Material.NotFound", $"Material not found: {materialPath}", UnityMcpErrorCategory.Io);
+
+        Dictionary<string, JsonElement>? properties;
+        try
+        {
+            properties = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(propertiesJson, JsonOpts);
+        }
+        catch (Exception ex)
+        {
+            return SerializeFailure<object>("Material.InvalidJson", $"Material properties JSON could not be parsed: {ex.Message}", UnityMcpErrorCategory.Validation);
+        }
+
+        if (properties is null || properties.Count == 0)
+            return SerializeFailure<object>("Material.EmptyProperties", "At least one material property is required.", UnityMcpErrorCategory.Validation);
+
+        string content = await _fs.File.ReadAllTextAsync(materialPath, cancellationToken);
+        if (properties.TryGetValue("name", out var nameValue) && nameValue.ValueKind == JsonValueKind.String)
+            content = Regex.Replace(content, @"(?m)^  m_Name: .*$", $"  m_Name: {EscapeYamlScalar(nameValue.GetString() ?? "Material")}");
+
+        foreach (var colorProperty in properties.Where(p => p.Value.ValueKind == JsonValueKind.Object && p.Value.TryGetProperty("r", out _)))
+        {
+            string yamlColor = FormatJsonColor(colorProperty.Value);
+            content = ReplaceYamlListEntry(content, colorProperty.Key, yamlColor);
+        }
+
+        foreach (var numericProperty in properties.Where(p => p.Value.ValueKind == JsonValueKind.Number))
+        {
+            string value = numericProperty.Value.GetDouble().ToString("G", System.Globalization.CultureInfo.InvariantCulture);
+            content = ReplaceYamlListEntry(content, numericProperty.Key, value);
+        }
+
+        await _fs.File.WriteAllTextAsync(materialPath, content, cancellationToken);
+        return JsonSerializer.Serialize(new ToolResultEnvelope<object>
+        {
+            Success = true,
+            Message = "Material properties updated.",
+            Data = new { material = MakeProjectRelativePath(projectPath, materialPath), updated = properties.Keys.ToArray() },
+        });
+    }
+
+    public async Task<string> AssignMaterialTextureAsync(string projectPath, string materialFileName, string textureFileName, string propertyName, CancellationToken cancellationToken = default)
+    {
+        string materialPath = ResolvePath(projectPath, materialFileName);
+        string texturePath = ResolvePath(projectPath, textureFileName);
+        if (!_fs.File.Exists(materialPath))
+            return SerializeFailure<object>("Material.NotFound", $"Material not found: {materialPath}", UnityMcpErrorCategory.Io);
+        if (!_fs.File.Exists(texturePath))
+            return SerializeFailure<object>("Texture.NotFound", $"Texture not found: {texturePath}", UnityMcpErrorCategory.Io);
+
+        string? guid = TryReadGuid(texturePath + ".meta");
+        if (string.IsNullOrWhiteSpace(guid))
+            return SerializeFailure<object>("Texture.MissingGuid", $"Texture meta GUID not found: {texturePath}.meta", UnityMcpErrorCategory.Validation);
+
+        string key = string.IsNullOrWhiteSpace(propertyName) ? "_MainTex" : propertyName.Trim();
+        string content = await _fs.File.ReadAllTextAsync(materialPath, cancellationToken);
+        string textureRef = $"{{fileID: 2800000, guid: {guid}, type: 3}}";
+        if (content.Contains($"- {key}:"))
+            content = Regex.Replace(content, $@"(?m)^    - {Regex.Escape(key)}: .*$", $"    - {key}: {textureRef}");
+        else
+            content = content.Replace("  m_TexEnvs: []", $"  m_TexEnvs:\n    - {key}: {textureRef}");
+
+        await _fs.File.WriteAllTextAsync(materialPath, content, cancellationToken);
+        return JsonSerializer.Serialize(new ToolResultEnvelope<object>
+        {
+            Success = true,
+            Message = "Texture assigned to material.",
+            Data = new { material = MakeProjectRelativePath(projectPath, materialPath), texture = MakeProjectRelativePath(projectPath, texturePath), propertyName = key },
+        });
+    }
+
+    public Task<string> LintProjectAsync(string projectPath, CancellationToken cancellationToken = default)
+        => PreferEditorAsync(projectPath, "asset.lint", null, () => LintProjectFileOnlyAsync(projectPath, cancellationToken), cancellationToken);
+
+    private Task<string> LintProjectFileOnlyAsync(string projectPath, CancellationToken cancellationToken)
+    {
+        string projectRoot = ValidateProjectRoot(projectPath, requireExists: true);
+        var errors = new List<UnityMcpError>();
+        var warnings = new List<UnityMcpError>();
+
+        string assetsPath = _fs.Path.Combine(projectRoot, "Assets");
+        if (!_fs.Directory.Exists(assetsPath))
+            errors.Add(new UnityMcpError { Category = UnityMcpErrorCategory.Validation, Code = "Lint.MissingAssets", Message = "Project is missing Assets/." });
+
+        if (_fs.Directory.Exists(assetsPath))
+        {
+            var assetFiles = _fs.Directory.EnumerateFiles(assetsPath, "*", SearchOption.AllDirectories)
+                .Where(path => !path.EndsWith(".meta", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            foreach (string asset in assetFiles)
+            {
+                if (!_fs.File.Exists(asset + ".meta"))
+                    warnings.Add(new UnityMcpError { Category = UnityMcpErrorCategory.Validation, Code = "Lint.MissingMeta", Message = $"Missing .meta sidecar: {MakeProjectRelativePath(projectRoot, asset)}" });
+
+                if (asset.EndsWith(".unity", StringComparison.OrdinalIgnoreCase) || asset.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase) || asset.EndsWith(".mat", StringComparison.OrdinalIgnoreCase))
+                {
+                    string content = _fs.File.ReadAllText(asset);
+                    foreach (Match match in Regex.Matches(content, @"guid:\s*([a-fA-F0-9]{32})"))
+                    {
+                        if (!GuidExists(projectRoot, match.Groups[1].Value))
+                            warnings.Add(new UnityMcpError { Category = UnityMcpErrorCategory.Validation, Code = "Lint.BrokenGuidReference", Message = $"Broken GUID reference {match.Groups[1].Value} in {MakeProjectRelativePath(projectRoot, asset)}" });
+                    }
+
+                    if (content.Contains("m_Script: {fileID: 0}", StringComparison.Ordinal))
+                        warnings.Add(new UnityMcpError { Category = UnityMcpErrorCategory.Validation, Code = "Lint.MissingScript", Message = $"Missing script reference in {MakeProjectRelativePath(projectRoot, asset)}" });
+                }
+            }
+        }
+
+        return Task.FromResult(JsonSerializer.Serialize(new ImportValidationResult
+        {
+            Success = errors.Count == 0,
+            ErrorCount = errors.Count,
+            WarningCount = warnings.Count,
+            Errors = errors,
+            Warnings = warnings,
+            Message = errors.Count == 0 ? "Project lint completed." : "Project lint found errors.",
+        }));
+    }
+
     // -----------------------------------------------------------------------
     // Validation & package management
     // -----------------------------------------------------------------------
 
     public Task<string> ValidateCSharpAsync(string code, CancellationToken cancellationToken = default)
     {
-        var errors = new List<string>();
-
-        // Check balanced braces
-        int braceCount = 0;
-        foreach (char c in code)
+        if (string.IsNullOrWhiteSpace(code))
         {
-            if (c == '{') braceCount++;
-            else if (c == '}') braceCount--;
-            if (braceCount < 0) { errors.Add("Unmatched closing brace '}'"); break; }
+            return Task.FromResult(JsonSerializer.Serialize(new
+            {
+                isValid = false,
+                errors = new[] { "Code must be a non-empty string." },
+                diagnostics = Array.Empty<object>(),
+            }));
         }
-        if (braceCount > 0) errors.Add($"Missing {braceCount} closing brace(s) '}}'");
 
-        // Check balanced parentheses
-        int parenCount = 0;
-        foreach (char c in code)
-        {
-            if (c == '(') parenCount++;
-            else if (c == ')') parenCount--;
-            if (parenCount < 0) { errors.Add("Unmatched closing parenthesis ')'"); break; }
-        }
-        if (parenCount > 0) errors.Add($"Missing {parenCount} closing parenthesis/es ')'");
+        var syntaxTree = CSharpSyntaxTree.ParseText(code, cancellationToken: cancellationToken);
+        var diagnostics = syntaxTree.GetDiagnostics(cancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error || d.Severity == DiagnosticSeverity.Warning)
+            .Select(d =>
+            {
+                var span = d.Location.GetLineSpan();
+                return new
+                {
+                    id = d.Id,
+                    severity = d.Severity.ToString(),
+                    message = d.GetMessage(),
+                    line = span.StartLinePosition.Line + 1,
+                    character = span.StartLinePosition.Character + 1,
+                };
+            })
+            .ToArray();
 
-        // Check for class/struct/interface keyword
-        if (!System.Text.RegularExpressions.Regex.IsMatch(code, @"\b(class|struct|interface|enum)\b"))
-            errors.Add("No class, struct, interface, or enum keyword found");
+        var errors = diagnostics
+            .Where(d => string.Equals(d.severity, nameof(DiagnosticSeverity.Error), StringComparison.Ordinal))
+            .Select(d => $"{d.id}: {d.message} (line {d.line}, column {d.character})")
+            .ToList();
 
-        // Check for using directive
-        if (!code.Contains("using "))
-            errors.Add("No 'using' directive found (expected at least UnityEngine)");
+        if (!Regex.IsMatch(code, @"\b(class|struct|interface|enum|record)\b"))
+            errors.Add("No type declaration found (expected class, struct, interface, enum, or record).");
 
         bool isValid = errors.Count == 0;
-        var result = JsonSerializer.Serialize(new { isValid, errors });
+        var result = JsonSerializer.Serialize(new { isValid, errors, diagnostics });
         return Task.FromResult(result);
     }
 
@@ -717,6 +1234,77 @@ public class {scriptName} : MonoBehaviour
         string output = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
         await _fs.File.WriteAllTextAsync(manifestPath, output, cancellationToken);
         _logger.LogInformation("Updated manifest.json with {Count} packages at {Path}", merged.Count, manifestPath);
+    }
+
+    public async Task<string> ListPackagesAsync(string projectPath, CancellationToken cancellationToken = default)
+    {
+        string manifestPath = _fs.Path.Combine(ValidateProjectRoot(projectPath, requireExists: false), "Packages", "manifest.json");
+        var dependencies = await ReadPackageDependenciesAsync(manifestPath, cancellationToken);
+        return JsonSerializer.Serialize(new ToolResultEnvelope<object>
+        {
+            Success = true,
+            Message = $"Listed {dependencies.Count} package dependencies.",
+            Data = new { manifest = MakeProjectRelativePath(projectPath, manifestPath), dependencies },
+        });
+    }
+
+    public async Task<string> RemovePackagesAsync(string projectPath, IReadOnlyList<string> packageIds, CancellationToken cancellationToken = default)
+    {
+        string manifestPath = _fs.Path.Combine(ValidateProjectRoot(projectPath, requireExists: false), "Packages", "manifest.json");
+        var dependencies = await ReadPackageDependenciesAsync(manifestPath, cancellationToken);
+        var removed = new List<string>();
+        foreach (string packageId in packageIds.Where(id => !string.IsNullOrWhiteSpace(id)))
+        {
+            if (dependencies.Remove(packageId.Trim()))
+                removed.Add(packageId.Trim());
+        }
+
+        await WritePackageDependenciesAsync(manifestPath, dependencies, cancellationToken);
+        return JsonSerializer.Serialize(new ToolResultEnvelope<object>
+        {
+            Success = true,
+            Message = $"Removed {removed.Count} package dependencies.",
+            Data = new { removed, dependencies },
+        });
+    }
+
+    public async Task<string> VerifyPackageHealthAsync(string projectPath, CancellationToken cancellationToken = default)
+    {
+        string projectRoot = ValidateProjectRoot(projectPath, requireExists: false);
+        string manifestPath = _fs.Path.Combine(projectRoot, "Packages", "manifest.json");
+        string lockPath = _fs.Path.Combine(projectRoot, "Packages", "packages-lock.json");
+        var warnings = new List<UnityMcpError>();
+        var errors = new List<UnityMcpError>();
+
+        Dictionary<string, string> dependencies;
+        try
+        {
+            dependencies = await ReadPackageDependenciesAsync(manifestPath, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            errors.Add(new UnityMcpError { Category = UnityMcpErrorCategory.Validation, Code = "Packages.ManifestInvalid", Message = ex.Message });
+            dependencies = new Dictionary<string, string>();
+        }
+
+        if (!_fs.File.Exists(lockPath))
+            warnings.Add(new UnityMcpError { Category = UnityMcpErrorCategory.Validation, Code = "Packages.LockMissing", Message = "Packages/packages-lock.json is missing; run Unity package resolution to create it." });
+
+        foreach (var dependency in dependencies)
+        {
+            if (string.IsNullOrWhiteSpace(dependency.Value))
+                warnings.Add(new UnityMcpError { Category = UnityMcpErrorCategory.Validation, Code = "Packages.EmptyVersion", Message = $"Package '{dependency.Key}' has an empty version." });
+        }
+
+        return JsonSerializer.Serialize(new ImportValidationResult
+        {
+            Success = errors.Count == 0,
+            ErrorCount = errors.Count,
+            WarningCount = warnings.Count,
+            Errors = errors,
+            Warnings = warnings,
+            Message = errors.Count == 0 ? "Package health verification completed." : "Package health verification failed.",
+        });
     }
 
     // -----------------------------------------------------------------------
@@ -949,6 +1537,130 @@ public class {scriptName} : MonoBehaviour
         }
     }
 
+    public async Task<string> ConfigureProjectSettingsAsync(string projectPath, string settingsJson, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(settingsJson))
+            return SerializeFailure<object>("ProjectSettings.Empty", "settingsJson is required.", UnityMcpErrorCategory.Validation);
+
+        string projectRoot = ValidateProjectRoot(projectPath, requireExists: false);
+        string settingsDir = _fs.Path.Combine(projectRoot, "ProjectSettings");
+        _fs.Directory.CreateDirectory(settingsDir);
+
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(settingsJson);
+        }
+        catch (Exception ex)
+        {
+            return SerializeFailure<object>("ProjectSettings.InvalidJson", $"Project settings JSON could not be parsed: {ex.Message}", UnityMcpErrorCategory.Validation);
+        }
+
+        string sidecarPath = _fs.Path.Combine(settingsDir, "McpProjectSettings.json");
+        await _fs.File.WriteAllTextAsync(sidecarPath, JsonSerializer.Serialize(document.RootElement, new JsonSerializerOptions { WriteIndented = true }), cancellationToken);
+
+        bool hasTags = document.RootElement.TryGetProperty("tags", out var tags);
+        bool hasLayers = document.RootElement.TryGetProperty("layers", out var layers);
+        if (hasTags || hasLayers)
+        {
+            string tagManagerPath = _fs.Path.Combine(settingsDir, "TagManager.asset");
+            string tagManager = _fs.File.Exists(tagManagerPath) ? await _fs.File.ReadAllTextAsync(tagManagerPath, cancellationToken) : "TagManager:\n  m_Tags:\n  m_Layers:\n";
+            if (hasTags && tags.ValueKind == JsonValueKind.Array)
+            {
+                var renderedTags = tags.EnumerateArray().Where(t => t.ValueKind == JsonValueKind.String).Select(t => $"  - {EscapeYamlScalar(t.GetString() ?? string.Empty)}");
+                tagManager = Regex.Replace(tagManager, @"(?s)  m_Tags:\s*(?:\n  - .*)*", "  m_Tags:\n" + string.Join("\n", renderedTags));
+            }
+            if (hasLayers && layers.ValueKind == JsonValueKind.Array)
+            {
+                var renderedLayers = layers.EnumerateArray().Where(t => t.ValueKind == JsonValueKind.String).Select(t => $"  - {EscapeYamlScalar(t.GetString() ?? string.Empty)}");
+                tagManager = Regex.Replace(tagManager, @"(?s)  m_Layers:\s*(?:\n  - .*)*", "  m_Layers:\n" + string.Join("\n", renderedLayers));
+            }
+            await _fs.File.WriteAllTextAsync(tagManagerPath, tagManager, cancellationToken);
+        }
+
+        return JsonSerializer.Serialize(new ToolResultEnvelope<object>
+        {
+            Success = true,
+            Message = "Project settings sidecar updated.",
+            Data = new { path = MakeProjectRelativePath(projectRoot, sidecarPath) },
+        });
+    }
+
+    public async Task<string> ConfigureBuildProfileAsync(string projectPath, string profileJson, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(profileJson))
+            return SerializeFailure<object>("BuildProfile.Empty", "profileJson is required.", UnityMcpErrorCategory.Validation);
+
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(profileJson);
+        }
+        catch (Exception ex)
+        {
+            return SerializeFailure<object>("BuildProfile.InvalidJson", $"Build profile JSON could not be parsed: {ex.Message}", UnityMcpErrorCategory.Validation);
+        }
+
+        string name = document.RootElement.TryGetProperty("name", out var nameElement) && nameElement.ValueKind == JsonValueKind.String
+            ? SanitizeAssetName(nameElement.GetString() ?? "BuildProfile")
+            : "BuildProfile";
+        string profilePath = ResolvePath(projectPath, $"Assets/Settings/BuildProfiles/{name}.buildprofile.json");
+        EnsureDirectoryExists(profilePath);
+        await _fs.File.WriteAllTextAsync(profilePath, JsonSerializer.Serialize(document.RootElement, new JsonSerializerOptions { WriteIndented = true }), cancellationToken);
+        await _metaWriter.WriteDefaultMetaAsync(profilePath, ct: cancellationToken);
+
+        return JsonSerializer.Serialize(new ToolResultEnvelope<object>
+        {
+            Success = true,
+            Message = "Build profile written.",
+            Data = new { path = MakeProjectRelativePath(projectPath, profilePath) },
+        });
+    }
+
+    public Task<string> QueryDocumentationAsync(string query, int maxResults = 10, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return Task.FromResult(SerializeFailure<object>("Documentation.EmptyQuery", "query is required.", UnityMcpErrorCategory.Validation));
+
+        string repoRoot = FindRepositoryRoot();
+        string[] roots =
+        [
+            repoRoot,
+            _fs.Path.Combine(repoRoot, "Docs"),
+            _fs.Path.Combine(repoRoot, "Skills"),
+        ];
+        string[] tokens = query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var results = new List<object>();
+        foreach (string root in roots.Where(_fs.Directory.Exists).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            foreach (string file in _fs.Directory.EnumerateFiles(root, "*.md", SearchOption.AllDirectories).OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
+            {
+                if (results.Count >= Math.Clamp(maxResults, 1, 25))
+                    break;
+                string text = _fs.File.ReadAllText(file);
+                int score = tokens.Count(token => text.Contains(token, StringComparison.OrdinalIgnoreCase) || _fs.Path.GetFileName(file).Contains(token, StringComparison.OrdinalIgnoreCase));
+                if (score == 0)
+                    continue;
+                int firstIndex = tokens.Select(token => text.IndexOf(token, StringComparison.OrdinalIgnoreCase)).Where(index => index >= 0).DefaultIfEmpty(0).Min();
+                int start = Math.Max(0, firstIndex - 160);
+                int length = Math.Min(360, text.Length - start);
+                results.Add(new
+                {
+                    path = MakeProjectRelativePath(repoRoot, file),
+                    score,
+                    snippet = text.Substring(start, length).Replace("\r", string.Empty).Replace("\n", " "),
+                });
+            }
+        }
+
+        return Task.FromResult(JsonSerializer.Serialize(new ToolResultEnvelope<object>
+        {
+            Success = true,
+            Message = $"Documentation search completed with {results.Count} results.",
+            Data = new { query, results },
+        }));
+    }
+
     private string? FindFirstRenderPipelineAssetGuid(string projectPath)
     {
         string assetsPath = _fs.Path.Combine(projectPath, "Assets");
@@ -978,66 +1690,56 @@ public class {scriptName} : MonoBehaviour
         return null;
     }
 
-    private async Task WritePackagesManifestAsync(string projectDir, string? unityTemplate, CancellationToken cancellationToken = default)
+    public async Task<string> ValidateImportAsync(string projectPath, CancellationToken cancellationToken = default)
     {
-        string packagesDir = _fs.Path.Combine(projectDir, "Packages");
-        if (!_fs.Directory.Exists(packagesDir))
-            _fs.Directory.CreateDirectory(packagesDir);
-
-        // Template -> package dependencies mapping
-        var templatePackages = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase)
+        _projectPath = projectPath;
+        if (_editorExecutor is null)
         {
-            ["urp"] = new Dictionary<string, string>
+            var unavailable = new ImportValidationResult
             {
-                ["com.unity.render-pipelines.universal"] = DefaultPackageVersions.TryGetValue("com.unity.render-pipelines.universal", out var v) ? v : ""
-            },
-            ["hdrp"] = new Dictionary<string, string>
-            {
-                ["com.unity.render-pipelines.high-definition"] = DefaultPackageVersions.TryGetValue("com.unity.render-pipelines.core", out var hv) ? hv : ""
-            },
-            ["vr"] = new Dictionary<string, string>
-            {
-                ["com.unity.xr.management"] = "4.0.1"
-            },
-            ["2d"] = new Dictionary<string, string>
-            {
-                ["com.unity.2d.sprite"] = "2.0.0"
-            }
-            // 3d and mobile intentionally map to empty dependencies
-        };
-
-        Dictionary<string, string> deps = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (!string.IsNullOrWhiteSpace(unityTemplate) && templatePackages.TryGetValue(unityTemplate.Trim().ToLowerInvariant(), out var mapped))
-        {
-            foreach (var kv in mapped)
-                deps[kv.Key] = kv.Value;
+                Success = false,
+                ErrorCount = 1,
+                WarningCount = 0,
+                Errors =
+                [
+                    new UnityMcpError
+                    {
+                        Category = UnityMcpErrorCategory.ExternalTool,
+                        Code = "ValidateImport.EditorUnavailable",
+                        Message = "Unity Editor executor is not registered.",
+                    }
+                ],
+                Warnings = Array.Empty<UnityMcpError>(),
+                Message = "Unity Editor is required for authoritative import and compilation validation. Set UNITY_EDITOR_PATH.",
+            };
+            return JsonSerializer.Serialize(unavailable);
         }
 
-        var manifestObject = new Dictionary<string, object> { ["dependencies"] = deps };
-        string manifestPath = _fs.Path.Combine(packagesDir, "manifest.json");
-        string output = JsonSerializer.Serialize(manifestObject, new JsonSerializerOptions { WriteIndented = true });
-        await _fs.File.WriteAllTextAsync(manifestPath, output, cancellationToken);
-        _logger.LogInformation("Wrote manifest.json for template {Template} at {Path}", unityTemplate ?? "", manifestPath);
-    }
-
-    /// <summary>
-    /// Validates import (asset refresh + script compilation). File-only stub: returns success with zero counts.
-    /// TODO: Run Unity in batch mode with an Editor script that performs AssetDatabase.Refresh and compilation,
-    /// writes mcp_validate_result.json, then read and return its contents.
-    /// </summary>
-    public Task<string> ValidateImportAsync(string projectPath, CancellationToken cancellationToken = default)
-    {
-        var result = new ImportValidationResult
+        if (_editorExecutor.FindUnityExecutable() is null
+            && !_editorExecutor.TryGetLiveBridgeStatus(projectPath, out bool connected, out _)
+            && !connected)
         {
-            Success = true,
-            ErrorCount = 0,
-            WarningCount = 0,
-            Errors = Array.Empty<UnityMcpError>(),
-            Warnings = Array.Empty<UnityMcpError>(),
-            Message = "Stub: file-only server cannot run Unity compilation. Implement batch-mode validation when Unity is available.",
-        };
+            var unavailable = new ImportValidationResult
+            {
+                Success = false,
+                ErrorCount = 1,
+                WarningCount = 0,
+                Errors =
+                [
+                    new UnityMcpError
+                    {
+                        Category = UnityMcpErrorCategory.ExternalTool,
+                        Code = "ValidateImport.EditorUnavailable",
+                        Message = "Unity Editor executable not found. Set UNITY_EDITOR_PATH environment variable.",
+                    }
+                ],
+                Warnings = Array.Empty<UnityMcpError>(),
+                Message = "Unity Editor is required for authoritative import and compilation validation. Set UNITY_EDITOR_PATH.",
+            };
+            return JsonSerializer.Serialize(unavailable);
+        }
 
-        return Task.FromResult(JsonSerializer.Serialize(result));
+        return await _editorExecutor.ExecuteAsync(projectPath, "validate_import", null, cancellationToken).ConfigureAwait(false);
     }
 
     // -----------------------------------------------------------------------
@@ -1046,6 +1748,15 @@ public class {scriptName} : MonoBehaviour
 
     public async Task<string> CreateUiCanvasAsync(string projectPath, string fileName, CancellationToken cancellationToken = default)
     {
+        if (IsEditorAvailable(projectPath))
+        {
+            return await _editorExecutor!.ExecuteAsync(projectPath, "native.create_ui",
+                new Dictionary<string, object?>
+                {
+                    ["fileName"] = ToProjectRelative(projectPath, fileName),
+                }, cancellationToken).ConfigureAwait(false);
+        }
+
         if (string.IsNullOrWhiteSpace(projectPath))
             throw new ArgumentException("Project path is required.", nameof(projectPath));
         if (string.IsNullOrWhiteSpace(fileName))
@@ -1077,6 +1788,12 @@ public class {scriptName} : MonoBehaviour
             Tag = "Untagged",
             Layer = 5, // UI layer
             Position = new Vector3Def(0, 0, 0),
+            Scale = new Vector3Def(1920, 1080, 1),
+            Components =
+            [
+                new ComponentDef(UnityYamlWriter.ClassId_Canvas),
+                new ComponentDef(UnityYamlWriter.ClassId_CanvasRenderer),
+            ],
         };
 
         var eventSystem = new GameObjectDef
@@ -1085,6 +1802,13 @@ public class {scriptName} : MonoBehaviour
             Tag = "Untagged",
             Layer = 5,
             Position = new Vector3Def(0, 0, 0),
+            Components =
+            [
+                new ComponentDef(UnityYamlWriter.ClassId_MonoBehaviour)
+                {
+                    Properties = { ["mcpComponentHint"] = "EventSystem" }
+                },
+            ],
         };
 
         UnityYamlWriter.ResetFileIdCounter();
@@ -1247,9 +1971,12 @@ public class {scriptName} : MonoBehaviour
         string jsonToWrite = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
         await _fs.File.WriteAllTextAsync(resolvedPath, jsonToWrite, cancellationToken);
         await _metaWriter.WriteDefaultMetaAsync(resolvedPath, ct: cancellationToken);
+        string nativePath = _fs.Path.ChangeExtension(resolvedPath, ".asset");
+        await _fs.File.WriteAllTextAsync(nativePath, "%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n--- !u!114 &11400000\nMonoBehaviour:\n  m_Name: NavMeshConfig\n  # mcp_native_hint: NavMesh settings ScriptableObject companion\n", cancellationToken);
+        await _metaWriter.WriteDefaultMetaAsync(nativePath, ct: cancellationToken);
 
         string relativePath = MakeProjectRelativePath(projectPath, resolvedPath);
-        var successResult = new { success = true, path = relativePath, message = (string?)null, errors = Array.Empty<UnityMcpError>() };
+        var successResult = new { success = true, path = relativePath, native_path = MakeProjectRelativePath(projectPath, nativePath), message = (string?)null, errors = Array.Empty<UnityMcpError>() };
         return JsonSerializer.Serialize(successResult);
     }
 
@@ -1363,6 +2090,16 @@ public class {scriptName} : MonoBehaviour
     /// </summary>
     public async Task<string> CreateInputActionsAsync(string projectPath, string fileName, string actionsJson, CancellationToken cancellationToken = default)
     {
+        if (IsEditorAvailable(projectPath))
+        {
+            return await _editorExecutor!.ExecuteAsync(projectPath, "native.create_input_actions",
+                new Dictionary<string, object?>
+                {
+                    ["fileName"] = ToProjectRelative(projectPath, fileName),
+                    ["content"] = actionsJson,
+                }, cancellationToken).ConfigureAwait(false);
+        }
+
         if (string.IsNullOrWhiteSpace(projectPath))
             throw new ArgumentException("Project path is required.", nameof(projectPath));
         if (string.IsNullOrWhiteSpace(fileName))
@@ -1423,6 +2160,15 @@ public class {scriptName} : MonoBehaviour
         if (string.IsNullOrWhiteSpace(animatorJson))
             throw new ArgumentException("Animator JSON is required.", nameof(animatorJson));
 
+        if (IsEditorAvailable(projectPath))
+        {
+            var args = MergeJsonArgs(animatorJson, new Dictionary<string, object?>
+            {
+                ["fileName"] = ToProjectRelative(projectPath, fileName),
+            });
+            return await _editorExecutor!.ExecuteAsync(projectPath, "native.create_animator", args, cancellationToken).ConfigureAwait(false);
+        }
+
         BasicAnimatorDefinition def;
         try
         {
@@ -1472,6 +2218,9 @@ public class {scriptName} : MonoBehaviour
         string jsonToWrite = JsonSerializer.Serialize(def, new JsonSerializerOptions { WriteIndented = true });
         await _fs.File.WriteAllTextAsync(resolvedPath, jsonToWrite, cancellationToken);
         await _metaWriter.WriteDefaultMetaAsync(resolvedPath, ct: cancellationToken);
+        string controllerPath = _fs.Path.ChangeExtension(resolvedPath, ".controller");
+        await _fs.File.WriteAllTextAsync(controllerPath, "%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n--- !u!91 &9100000\nAnimatorController:\n  m_Name: " + EscapeYamlScalar(def.Name) + "\n  # mcp_native_hint: Generated from BasicAnimatorDefinition\n", cancellationToken);
+        await _metaWriter.WriteDefaultMetaAsync(controllerPath, ct: cancellationToken);
 
         string relativePath = MakeProjectRelativePath(projectPath, resolvedPath);
         if (warnings.Count > 0)
@@ -1485,9 +2234,9 @@ public class {scriptName} : MonoBehaviour
                 Warnings = warnings,
                 Message = "Animator definition created; some referenced clips are missing.",
             };
-            return JsonSerializer.Serialize(new { success = true, path = relativePath, message = result.Message, errors = Array.Empty<UnityMcpError>(), warnings });
+            return JsonSerializer.Serialize(new { success = true, path = relativePath, native_path = MakeProjectRelativePath(projectPath, controllerPath), message = result.Message, errors = Array.Empty<UnityMcpError>(), warnings });
         }
-        return JsonSerializer.Serialize(new { success = true, path = relativePath, message = "Animator definition created successfully.", errors = Array.Empty<UnityMcpError>(), warnings = Array.Empty<UnityMcpError>() });
+        return JsonSerializer.Serialize(new { success = true, path = relativePath, native_path = MakeProjectRelativePath(projectPath, controllerPath), message = "Animator definition created successfully.", errors = Array.Empty<UnityMcpError>(), warnings = Array.Empty<UnityMcpError>() });
     }
 
     /// <summary>
@@ -1565,9 +2314,12 @@ public class {scriptName} : MonoBehaviour
         // Persist original JSON as the authoritative surrogate.
         await _fs.File.WriteAllTextAsync(resolvedPath, animatorJson, cancellationToken);
         await _metaWriter.WriteDefaultMetaAsync(resolvedPath, ct: cancellationToken);
+        string nativeControllerPath = _fs.Path.ChangeExtension(resolvedPath, ".controller");
+        await _fs.File.WriteAllTextAsync(nativeControllerPath, "%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n--- !u!91 &9100000\nAnimatorController:\n  m_Name: AdvancedAnimator\n  # mcp_native_hint: Generated from advanced animator contract\n", cancellationToken);
+        await _metaWriter.WriteDefaultMetaAsync(nativeControllerPath, ct: cancellationToken);
 
         string relativePath = MakeProjectRelativePath(projectPath, resolvedPath);
-        return JsonSerializer.Serialize(new { success = true, path = relativePath, message = "Advanced animator definition created successfully.", errors = Array.Empty<UnityMcpError>() });
+        return JsonSerializer.Serialize(new { success = true, path = relativePath, native_path = MakeProjectRelativePath(projectPath, nativeControllerPath), message = "Advanced animator definition created successfully.", errors = Array.Empty<UnityMcpError>() });
     }
 
     /// <summary>
@@ -1648,6 +2400,9 @@ public class {scriptName} : MonoBehaviour
         string jsonToWrite = JsonSerializer.Serialize(def, new JsonSerializerOptions { WriteIndented = true });
         await _fs.File.WriteAllTextAsync(resolvedPath, jsonToWrite, cancellationToken);
         await _metaWriter.WriteDefaultMetaAsync(resolvedPath, ct: cancellationToken);
+        string playablePath = _fs.Path.ChangeExtension(resolvedPath, ".playable");
+        await _fs.File.WriteAllTextAsync(playablePath, "%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n--- !u!114 &11400000\nMonoBehaviour:\n  m_Name: " + EscapeYamlScalar(def.Name) + "\n  # mcp_native_hint: Timeline companion asset\n", cancellationToken);
+        await _metaWriter.WriteDefaultMetaAsync(playablePath, ct: cancellationToken);
 
         string relPath = MakeProjectRelativePath(projectPath, resolvedPath);
         if (warnings.Count > 0)
@@ -1661,10 +2416,10 @@ public class {scriptName} : MonoBehaviour
                 Warnings = warnings,
                 Message = "Timeline created; some referenced clips are missing.",
             };
-            return JsonSerializer.Serialize(new { success = true, path = relPath, message = result.Message, errors = Array.Empty<UnityMcpError>(), warnings });
+            return JsonSerializer.Serialize(new { success = true, path = relPath, native_path = MakeProjectRelativePath(projectPath, playablePath), message = result.Message, errors = Array.Empty<UnityMcpError>(), warnings });
         }
 
-        return JsonSerializer.Serialize(new { success = true, path = relPath, message = "Timeline created successfully.", errors = Array.Empty<UnityMcpError>(), warnings = Array.Empty<UnityMcpError>() });
+        return JsonSerializer.Serialize(new { success = true, path = relPath, native_path = MakeProjectRelativePath(projectPath, playablePath), message = "Timeline created successfully.", errors = Array.Empty<UnityMcpError>(), warnings = Array.Empty<UnityMcpError>() });
     }
 
     // -----------------------------------------------------------------------
@@ -1764,9 +2519,17 @@ public class {scriptName} : MonoBehaviour
         string jsonToWrite = JsonSerializer.Serialize(setup, new JsonSerializerOptions { WriteIndented = true });
         await _fs.File.WriteAllTextAsync(resolvedPath, jsonToWrite, cancellationToken);
         await _metaWriter.WriteDefaultMetaAsync(resolvedPath, ct: cancellationToken);
+        string prefabPath = _fs.Path.ChangeExtension(resolvedPath, ".prefab");
+        UnityYamlWriter.ResetFileIdCounter();
+        await _fs.File.WriteAllTextAsync(prefabPath, UnityYamlWriter.WritePrefab(new GameObjectDef
+        {
+            Name = string.IsNullOrWhiteSpace(setup.Name) ? "PhysicsSetup" : setup.Name,
+            Components = [new ComponentDef(UnityYamlWriter.ClassId_Rigidbody)]
+        }), cancellationToken);
+        await _metaWriter.WriteDefaultMetaAsync(prefabPath, ct: cancellationToken);
 
         string relativePath = MakeProjectRelativePath(projectPath, resolvedPath);
-        return JsonSerializer.Serialize(new { success = true, path = relativePath, message = "Physics setup created successfully.", errors = Array.Empty<UnityMcpError>() });
+        return JsonSerializer.Serialize(new { success = true, path = relativePath, native_path = MakeProjectRelativePath(projectPath, prefabPath), message = "Physics setup created successfully.", errors = Array.Empty<UnityMcpError>() });
     }
 
     // -----------------------------------------------------------------------
@@ -1910,47 +2673,467 @@ public class {scriptName} : MonoBehaviour
         string jsonToWrite = JsonSerializer.Serialize(effect, new JsonSerializerOptions { WriteIndented = true });
         await _fs.File.WriteAllTextAsync(resolvedPath, jsonToWrite, cancellationToken);
         await _metaWriter.WriteDefaultMetaAsync(resolvedPath, ct: cancellationToken);
+        string vfxPrefabPath = _fs.Path.ChangeExtension(resolvedPath, ".prefab");
+        UnityYamlWriter.ResetFileIdCounter();
+        await _fs.File.WriteAllTextAsync(vfxPrefabPath, UnityYamlWriter.WritePrefab(new GameObjectDef
+        {
+            Name = string.IsNullOrWhiteSpace(effect.Name) ? "ParticleEffect" : effect.Name,
+            Components =
+            [
+                new ComponentDef(UnityYamlWriter.ClassId_MonoBehaviour)
+                {
+                    Properties = { ["mcpComponentHint"] = "ParticleSystem" }
+                }
+            ],
+        }), cancellationToken);
+        await _metaWriter.WriteDefaultMetaAsync(vfxPrefabPath, ct: cancellationToken);
 
         string relativePath = MakeProjectRelativePath(projectPath, resolvedPath);
         return JsonSerializer.Serialize(new
         {
             success = true,
             path = relativePath,
+            native_path = MakeProjectRelativePath(projectPath, vfxPrefabPath),
             message = "VFX asset created successfully.",
             errors = Array.Empty<UnityMcpError>(),
         });
     }
 
+    public Task<string> ListCamerasAsync(string projectPath, string folderName = "Assets/Scenes", CancellationToken cancellationToken = default)
+        => Task.FromResult(ListDomainObjects(projectPath, folderName, "Camera", "Camera"));
+
+    public Task<string> ValidateCamerasAsync(string projectPath, string folderName = "Assets/Scenes", CancellationToken cancellationToken = default)
+        => PreferEditorAsync(projectPath, "domain.validate_camera",
+            new Dictionary<string, object?> { ["folderName"] = folderName },
+            () => Task.FromResult(ValidateDomainObjects(projectPath, folderName, "Camera", requireAtLeastOne: true)),
+            cancellationToken);
+
+    public Task<string> ListLightsAsync(string projectPath, string folderName = "Assets/Scenes", CancellationToken cancellationToken = default)
+        => Task.FromResult(ListDomainObjects(projectPath, folderName, "Light", "Light"));
+
+    public Task<string> ValidateLightsAsync(string projectPath, string folderName = "Assets/Scenes", CancellationToken cancellationToken = default)
+        => PreferEditorAsync(projectPath, "domain.validate_light",
+            new Dictionary<string, object?> { ["folderName"] = folderName },
+            () => Task.FromResult(ValidateDomainObjects(projectPath, folderName, "Light", requireAtLeastOne: false)),
+            cancellationToken);
+
+    public Task<string> ListPhysicsObjectsAsync(string projectPath, string folderName = "Assets/Scenes", CancellationToken cancellationToken = default)
+        => Task.FromResult(ListDomainObjects(projectPath, folderName, "Physics", "Rigidbody", "BoxCollider", "SphereCollider", "CapsuleCollider"));
+
+    public Task<string> ValidatePhysicsAsync(string projectPath, string folderName = "Assets/Scenes", CancellationToken cancellationToken = default)
+        => TryEditorOrFileAsync(projectPath, "domain.validate_physics",
+            new Dictionary<string, object?> { ["folderName"] = folderName },
+            () => Task.FromResult(ValidateDomainObjects(projectPath, folderName, "Physics", requireAtLeastOne: false, "Rigidbody", "BoxCollider", "SphereCollider", "CapsuleCollider")),
+            cancellationToken);
+
+    public Task<string> AddSceneGameObjectAsync(string projectPath, string fileName, string parentPath, string objectName, CancellationToken cancellationToken = default)
+        => PreferEditorAsync(projectPath, "scene.add",
+            new Dictionary<string, object?>
+            {
+                ["fileName"] = ToProjectRelative(projectPath, fileName),
+                ["parentPath"] = parentPath,
+                ["objectName"] = objectName,
+            },
+            async () =>
+            {
+                // File fallback: append root GO (parentPath ignored in file-only mode).
+                await AddGameObjectToSceneAsync(projectPath, fileName,
+                    JsonSerializer.Serialize(new { name = objectName }), cancellationToken).ConfigureAwait(false);
+                return JsonSerializer.Serialize(new ToolResultEnvelope<object>
+                {
+                    Success = true,
+                    Message = "GameObject added (file-only; parentPath ignored).",
+                    Data = new { objectName, parentPath },
+                    Warnings =
+                    [
+                        new UnityMcpError
+                        {
+                            Category = UnityMcpErrorCategory.Contract,
+                            Code = "Scene.ParentIgnoredFileOnly",
+                            Message = "File-only mode cannot reparent; use Editor bridge for hierarchy-accurate adds.",
+                        }
+                    ],
+                });
+            },
+            cancellationToken);
+
+    public Task<string> ReparentSceneGameObjectAsync(string projectPath, string fileName, string objectPath, string newParentPath, CancellationToken cancellationToken = default)
+        => PreferEditorAsync(projectPath, "scene.reparent",
+            new Dictionary<string, object?>
+            {
+                ["fileName"] = ToProjectRelative(projectPath, fileName),
+                ["objectPath"] = objectPath,
+                ["newParentPath"] = newParentPath,
+            },
+            () => Task.FromResult(SerializeFailure<object>("Scene.ReparentRequiresEditor",
+                "Reparent requires the Unity Editor bridge.", UnityMcpErrorCategory.ExternalTool,
+                "Install the bridge and set UNITY_EDITOR_PATH or open the project in Unity.")),
+            cancellationToken);
+
+    public Task<string> GetSceneObjectPropertiesAsync(string projectPath, string fileName, string objectPath, CancellationToken cancellationToken = default)
+        => PreferEditorAsync(projectPath, "scene.get_properties",
+            new Dictionary<string, object?>
+            {
+                ["fileName"] = ToProjectRelative(projectPath, fileName),
+                ["objectPath"] = objectPath,
+            },
+            async () =>
+            {
+                string list = await ListSceneObjectsAsync(projectPath, fileName, cancellationToken).ConfigureAwait(false);
+                return list;
+            },
+            cancellationToken);
+
+    public Task<string> SetSceneObjectPropertiesAsync(string projectPath, string fileName, string objectPath, string propertiesJson, CancellationToken cancellationToken = default)
+    {
+        Dictionary<string, object?>? props = null;
+        try { props = JsonSerializer.Deserialize<Dictionary<string, object?>>(propertiesJson, JsonOpts); } catch { /* handled below */ }
+        if (props is null)
+            return Task.FromResult(SerializeFailure<object>("Scene.InvalidProperties", "propertiesJson is invalid.", UnityMcpErrorCategory.Validation));
+
+        return PreferEditorAsync(projectPath, "scene.set_properties",
+            new Dictionary<string, object?>
+            {
+                ["fileName"] = ToProjectRelative(projectPath, fileName),
+                ["objectPath"] = objectPath,
+                ["properties"] = props,
+            },
+            () => Task.FromResult(SerializeFailure<object>("Scene.SetPropertiesRequiresEditor",
+                "Setting serialized properties requires the Unity Editor bridge.", UnityMcpErrorCategory.ExternalTool)),
+            cancellationToken);
+    }
+
+    public Task<string> SetSceneObjectActiveAsync(string projectPath, string fileName, string objectPath, bool active, CancellationToken cancellationToken = default)
+        => PreferEditorAsync(projectPath, "scene.set_active",
+            new Dictionary<string, object?>
+            {
+                ["fileName"] = ToProjectRelative(projectPath, fileName),
+                ["objectPath"] = objectPath,
+                ["active"] = active,
+            },
+            () => Task.FromResult(SerializeFailure<object>("Scene.SetActiveRequiresEditor",
+                "Setting active state requires the Unity Editor bridge.", UnityMcpErrorCategory.ExternalTool)),
+            cancellationToken);
+
+    public Task<string> ListComponentsAsync(string projectPath, string fileName, string objectPath, CancellationToken cancellationToken = default)
+        => PreferEditorAsync(projectPath, "component.list",
+            new Dictionary<string, object?>
+            {
+                ["fileName"] = ToProjectRelative(projectPath, fileName),
+                ["objectPath"] = objectPath,
+            },
+            async () =>
+            {
+                var graphJson = await ListSceneObjectsAsync(projectPath, fileName, cancellationToken).ConfigureAwait(false);
+                return graphJson;
+            },
+            cancellationToken);
+
+    public Task<string> AddComponentAsync(string projectPath, string fileName, string objectPath, string componentType, CancellationToken cancellationToken = default)
+        => PreferEditorAsync(projectPath, "component.add",
+            new Dictionary<string, object?>
+            {
+                ["fileName"] = ToProjectRelative(projectPath, fileName),
+                ["objectPath"] = objectPath,
+                ["componentType"] = componentType,
+            },
+            () => Task.FromResult(SerializeFailure<object>("Component.AddRequiresEditor",
+                "Adding components requires the Unity Editor bridge.", UnityMcpErrorCategory.ExternalTool)),
+            cancellationToken);
+
+    public Task<string> RemoveComponentAsync(string projectPath, string fileName, string objectPath, string componentType, int componentIndex = 0, CancellationToken cancellationToken = default)
+        => PreferEditorAsync(projectPath, "component.remove",
+            new Dictionary<string, object?>
+            {
+                ["fileName"] = ToProjectRelative(projectPath, fileName),
+                ["objectPath"] = objectPath,
+                ["componentType"] = componentType,
+                ["componentIndex"] = componentIndex,
+            },
+            () => Task.FromResult(SerializeFailure<object>("Component.RemoveRequiresEditor",
+                "Removing components requires the Unity Editor bridge.", UnityMcpErrorCategory.ExternalTool)),
+            cancellationToken);
+
+    public Task<string> GetComponentPropertiesAsync(string projectPath, string fileName, string objectPath, string componentType, int componentIndex = 0, CancellationToken cancellationToken = default)
+        => PreferEditorAsync(projectPath, "component.get",
+            new Dictionary<string, object?>
+            {
+                ["fileName"] = ToProjectRelative(projectPath, fileName),
+                ["objectPath"] = objectPath,
+                ["componentType"] = componentType,
+                ["componentIndex"] = componentIndex,
+            },
+            () => Task.FromResult(SerializeFailure<object>("Component.GetRequiresEditor",
+                "Reading component properties requires the Unity Editor bridge.", UnityMcpErrorCategory.ExternalTool)),
+            cancellationToken);
+
+    public Task<string> SetComponentPropertiesAsync(string projectPath, string fileName, string objectPath, string componentType, string propertiesJson, int componentIndex = 0, CancellationToken cancellationToken = default)
+    {
+        Dictionary<string, object?>? props = null;
+        try { props = JsonSerializer.Deserialize<Dictionary<string, object?>>(propertiesJson, JsonOpts); } catch { /* */ }
+        if (props is null)
+            return Task.FromResult(SerializeFailure<object>("Component.InvalidProperties", "propertiesJson is invalid.", UnityMcpErrorCategory.Validation));
+
+        return PreferEditorAsync(projectPath, "component.set",
+            new Dictionary<string, object?>
+            {
+                ["fileName"] = ToProjectRelative(projectPath, fileName),
+                ["objectPath"] = objectPath,
+                ["componentType"] = componentType,
+                ["componentIndex"] = componentIndex,
+                ["properties"] = props,
+            },
+            () => Task.FromResult(SerializeFailure<object>("Component.SetRequiresEditor",
+                "Setting component properties requires the Unity Editor bridge.", UnityMcpErrorCategory.ExternalTool)),
+            cancellationToken);
+    }
+
+    public Task<string> SetComponentEnabledAsync(string projectPath, string fileName, string objectPath, string componentType, bool enabled, int componentIndex = 0, CancellationToken cancellationToken = default)
+        => PreferEditorAsync(projectPath, "component.set_enabled",
+            new Dictionary<string, object?>
+            {
+                ["fileName"] = ToProjectRelative(projectPath, fileName),
+                ["objectPath"] = objectPath,
+                ["componentType"] = componentType,
+                ["componentIndex"] = componentIndex,
+                ["enabled"] = enabled,
+            },
+            () => Task.FromResult(SerializeFailure<object>("Component.SetEnabledRequiresEditor",
+                "Enabling components requires the Unity Editor bridge.", UnityMcpErrorCategory.ExternalTool)),
+            cancellationToken);
+
+    public Task<string> CreateScriptableObjectAsync(string projectPath, string fileName, string typeName, string? propertiesJson = null, CancellationToken cancellationToken = default)
+        => PreferEditorAsync(projectPath, "asset.create_scriptable_object",
+            new Dictionary<string, object?>
+            {
+                ["fileName"] = ToProjectRelative(projectPath, fileName),
+                ["typeName"] = typeName,
+            },
+            () => Task.FromResult(SerializeFailure<object>("ScriptableObject.RequiresEditor",
+                "Creating ScriptableObjects requires the Unity Editor bridge.", UnityMcpErrorCategory.ExternalTool)),
+            cancellationToken);
+
+    public Task<string> ReadSerializedAssetAsync(string projectPath, string fileName, CancellationToken cancellationToken = default)
+        => PreferEditorAsync(projectPath, "asset.read_serialized",
+            new Dictionary<string, object?> { ["fileName"] = ToProjectRelative(projectPath, fileName) },
+            async () =>
+            {
+                string content = await ReadAssetAsync(projectPath, fileName, cancellationToken).ConfigureAwait(false);
+                return JsonSerializer.Serialize(new ToolResultEnvelope<object>
+                {
+                    Success = true,
+                    Message = "Raw asset text read (file-only).",
+                    Data = new { content },
+                });
+            },
+            cancellationToken);
+
+    public Task<string> UpdateSerializedAssetAsync(string projectPath, string fileName, string propertiesJson, CancellationToken cancellationToken = default)
+    {
+        Dictionary<string, object?>? props = null;
+        try { props = JsonSerializer.Deserialize<Dictionary<string, object?>>(propertiesJson, JsonOpts); } catch { /* */ }
+        if (props is null)
+            return Task.FromResult(SerializeFailure<object>("Asset.InvalidProperties", "propertiesJson is invalid.", UnityMcpErrorCategory.Validation));
+
+        return PreferEditorAsync(projectPath, "asset.update_serialized",
+            new Dictionary<string, object?>
+            {
+                ["fileName"] = ToProjectRelative(projectPath, fileName),
+                ["properties"] = props,
+            },
+            () => Task.FromResult(SerializeFailure<object>("Asset.UpdateRequiresEditor",
+                "Updating serialized assets requires the Unity Editor bridge.", UnityMcpErrorCategory.ExternalTool)),
+            cancellationToken);
+    }
+
+    public Task<string> CreateCameraAsync(string projectPath, string fileName, string parentPath, string cameraJson, CancellationToken cancellationToken = default)
+    {
+        var args = MergeJsonArgs(cameraJson, new Dictionary<string, object?>
+        {
+            ["fileName"] = ToProjectRelative(projectPath, fileName),
+            ["parentPath"] = parentPath,
+        });
+        return PreferEditorAsync(projectPath, "domain.create_camera", args,
+            () => Task.FromResult(SerializeFailure<object>("Camera.CreateRequiresEditor",
+                "Creating cameras requires the Unity Editor bridge.", UnityMcpErrorCategory.ExternalTool)),
+            cancellationToken);
+    }
+
+    public Task<string> UpdateCameraAsync(string projectPath, string fileName, string objectPath, string cameraJson, CancellationToken cancellationToken = default)
+    {
+        var args = MergeJsonArgs(cameraJson, new Dictionary<string, object?>
+        {
+            ["fileName"] = ToProjectRelative(projectPath, fileName),
+            ["objectPath"] = objectPath,
+        });
+        return PreferEditorAsync(projectPath, "domain.update_camera", args,
+            () => Task.FromResult(SerializeFailure<object>("Camera.UpdateRequiresEditor",
+                "Updating cameras requires the Unity Editor bridge.", UnityMcpErrorCategory.ExternalTool)),
+            cancellationToken);
+    }
+
+    public Task<string> CreateLightAsync(string projectPath, string fileName, string parentPath, string lightJson, CancellationToken cancellationToken = default)
+    {
+        var args = MergeJsonArgs(lightJson, new Dictionary<string, object?>
+        {
+            ["fileName"] = ToProjectRelative(projectPath, fileName),
+            ["parentPath"] = parentPath,
+        });
+        return PreferEditorAsync(projectPath, "domain.create_light", args,
+            () => Task.FromResult(SerializeFailure<object>("Light.CreateRequiresEditor",
+                "Creating lights requires the Unity Editor bridge.", UnityMcpErrorCategory.ExternalTool)),
+            cancellationToken);
+    }
+
+    public Task<string> UpdateLightAsync(string projectPath, string fileName, string objectPath, string lightJson, CancellationToken cancellationToken = default)
+    {
+        var args = MergeJsonArgs(lightJson, new Dictionary<string, object?>
+        {
+            ["fileName"] = ToProjectRelative(projectPath, fileName),
+            ["objectPath"] = objectPath,
+        });
+        return PreferEditorAsync(projectPath, "domain.update_light", args,
+            () => Task.FromResult(SerializeFailure<object>("Light.UpdateRequiresEditor",
+                "Updating lights requires the Unity Editor bridge.", UnityMcpErrorCategory.ExternalTool)),
+            cancellationToken);
+    }
+
+    public Task<string> CreatePhysicsBodyAsync(string projectPath, string fileName, string parentPath, string physicsJson, CancellationToken cancellationToken = default)
+    {
+        var args = MergeJsonArgs(physicsJson, new Dictionary<string, object?>
+        {
+            ["fileName"] = ToProjectRelative(projectPath, fileName),
+            ["parentPath"] = parentPath,
+        });
+        return PreferEditorAsync(projectPath, "domain.create_physics", args,
+            () => Task.FromResult(SerializeFailure<object>("Physics.CreateRequiresEditor",
+                "Creating physics bodies requires the Unity Editor bridge.", UnityMcpErrorCategory.ExternalTool)),
+            cancellationToken);
+    }
+
+    public Task<string> UpdatePhysicsBodyAsync(string projectPath, string fileName, string objectPath, string physicsJson, CancellationToken cancellationToken = default)
+    {
+        var args = MergeJsonArgs(physicsJson, new Dictionary<string, object?>
+        {
+            ["fileName"] = ToProjectRelative(projectPath, fileName),
+            ["objectPath"] = objectPath,
+        });
+        return PreferEditorAsync(projectPath, "domain.update_physics", args,
+            () => Task.FromResult(SerializeFailure<object>("Physics.UpdateRequiresEditor",
+                "Updating physics bodies requires the Unity Editor bridge.", UnityMcpErrorCategory.ExternalTool)),
+            cancellationToken);
+    }
+
+    public Task<string> SearchPackagesAsync(string projectPath, string query, CancellationToken cancellationToken = default)
+        => PreferEditorAsync(projectPath, "ecosystem.search_packages",
+            new Dictionary<string, object?> { ["query"] = query },
+            () => Task.FromResult(SerializeFailure<object>("Packages.SearchRequiresEditor",
+                "UPM search requires the Unity Editor bridge.", UnityMcpErrorCategory.ExternalTool)),
+            cancellationToken);
+
+    public Task<string> ResolvePackagesAsync(string projectPath, CancellationToken cancellationToken = default)
+        => PreferEditorAsync(projectPath, "ecosystem.resolve_packages", null,
+            () => Task.FromResult(SerializeFailure<object>("Packages.ResolveRequiresEditor",
+                "UPM resolve requires the Unity Editor bridge.", UnityMcpErrorCategory.ExternalTool)),
+            cancellationToken);
+
+    public Task<string> QueryUnityEngineDocumentationAsync(string query, string? unityVersion = null, int maxResults = 10, CancellationToken cancellationToken = default)
+    {
+        // Lightweight Unity-version-aware Scripting API search via public docs URL patterns + local fallback.
+        maxResults = Math.Clamp(maxResults, 1, 25);
+        string versionSegment = string.IsNullOrWhiteSpace(unityVersion) ? "6000.0" : unityVersion.Trim();
+        var results = new List<object>
+        {
+            new
+            {
+                title = $"Unity Scripting API search: {query}",
+                url = $"https://docs.unity3d.com/ScriptReference/30_search.html?q={Uri.EscapeDataString(query)}",
+                unityVersion = versionSegment,
+                snippet = $"Search Unity {versionSegment} Scripting API for '{query}'.",
+            },
+            new
+            {
+                title = $"Unity Manual search: {query}",
+                url = $"https://docs.unity3d.com/Manual/30_search.html?q={Uri.EscapeDataString(query)}",
+                unityVersion = versionSegment,
+                snippet = $"Search Unity {versionSegment} Manual for '{query}'.",
+            },
+        };
+        return Task.FromResult(JsonSerializer.Serialize(new ToolResultEnvelope<object>
+        {
+            Success = true,
+            Message = "Unity engine documentation links generated.",
+            Data = new { query, unityVersion = versionSegment, results = results.Take(maxResults).ToArray() },
+        }));
+    }
+
+    private async Task<string> PreferEditorAsync(
+        string projectPath,
+        string operation,
+        IReadOnlyDictionary<string, object?>? args,
+        Func<Task<string>> fileFallback,
+        CancellationToken cancellationToken)
+    {
+        _projectPath = projectPath;
+        if (IsEditorAvailable(projectPath))
+        {
+            return await _editorExecutor!.ExecuteAsync(projectPath, operation, args, cancellationToken).ConfigureAwait(false);
+        }
+
+        return await fileFallback().ConfigureAwait(false);
+    }
+
+    private bool IsEditorAvailable(string projectPath)
+        => _editorExecutor is not null
+           && (_editorExecutor.FindUnityExecutable() is not null
+               || (_editorExecutor.TryGetLiveBridgeStatus(projectPath, out bool connected, out _) && connected));
+
+    private Task<string> TryEditorOrFileAsync(
+        string projectPath,
+        string operation,
+        IReadOnlyDictionary<string, object?>? args,
+        Func<Task<string>> fileFallback,
+        CancellationToken cancellationToken)
+        => PreferEditorAsync(projectPath, operation, args, fileFallback, cancellationToken);
+
+    private string ToProjectRelative(string projectPath, string fileName)
+    {
+        try
+        {
+            string resolved = ResolvePath(projectPath, fileName);
+            return MakeProjectRelativePath(projectPath, resolved);
+        }
+        catch
+        {
+            return fileName.Replace('\\', '/');
+        }
+    }
+
+    private static Dictionary<string, object?> MergeJsonArgs(string json, Dictionary<string, object?> baseArgs)
+    {
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<Dictionary<string, object?>>(json, JsonOpts);
+            if (parsed is not null)
+            {
+                foreach (var kv in parsed)
+                    baseArgs[kv.Key] = kv.Value;
+            }
+        }
+        catch
+        {
+            // Ignore invalid JSON; editor handler will validate.
+        }
+        return baseArgs;
+    }
+
     /// <summary>
-    /// Resolves path under project. Validates both projectPath and nameOrPath; builds final path
-    /// without duplicating segments (e.g. if projectPath ends with Assets and nameOrPath starts with Assets/Scripts, use as-is).
+    /// Resolves path under project using PathResolver containment rules.
     /// </summary>
     private string ResolvePath(string projectPath, string nameOrPath)
     {
-        if (string.IsNullOrWhiteSpace(nameOrPath))
-            throw new ArgumentException("Path or file name cannot be empty.", nameof(nameOrPath));
-        nameOrPath = nameOrPath.Trim().Replace('/', _fs.Path.DirectorySeparatorChar);
-        string projectRoot = _fs.Path.GetFullPath(projectPath ?? "").TrimEnd(_fs.Path.DirectorySeparatorChar, '/');
-
-        if (!nameOrPath.Contains(_fs.Path.DirectorySeparatorChar))
-            return _fs.Path.GetFullPath(_fs.Path.Combine(projectRoot, nameOrPath));
-
-        // Strip leading segments from nameOrPath that duplicate trailing segments of projectRoot
-        string[] projectSegments = projectRoot.Split(new[] { _fs.Path.DirectorySeparatorChar, '/' }, StringSplitOptions.RemoveEmptyEntries);
-        string[] nameSegments = nameOrPath.Split(new[] { _fs.Path.DirectorySeparatorChar, '/' }, StringSplitOptions.RemoveEmptyEntries);
-        int strip = 0;
-        int projIdx = projectSegments.Length - 1;
-        while (projIdx >= 0 && strip < nameSegments.Length &&
-               string.Equals(projectSegments[projIdx], nameSegments[strip], StringComparison.OrdinalIgnoreCase))
-        {
-            strip++;
-            projIdx--;
-        }
-        // Never strip all segments: we must keep at least one (file/folder name) so the result is a valid path
-        if (strip >= nameSegments.Length)
-            strip = 0;
-        string combined = _fs.Path.Combine(projectRoot, string.Join(_fs.Path.DirectorySeparatorChar.ToString(), nameSegments.Skip(strip)));
-        return _fs.Path.GetFullPath(combined);
+        string projectRoot = ValidateProjectRoot(projectPath, requireExists: false);
+        return PathResolver.ForProject(projectRoot).ResolveUnderProject(projectRoot, nameOrPath);
     }
 
     /// <summary>
@@ -1961,7 +3144,7 @@ public class {scriptName} : MonoBehaviour
     {
         if (string.IsNullOrWhiteSpace(fileName)) fileName = "unnamed";
         fileName = fileName.Trim().Replace('/', _fs.Path.DirectorySeparatorChar);
-        string projectRoot = _fs.Path.GetFullPath(projectPath ?? "").TrimEnd(_fs.Path.DirectorySeparatorChar, '/');
+        string projectRoot = ValidateProjectRoot(projectPath, requireExists: false);
 
         bool hasDirSep = fileName.Contains(_fs.Path.DirectorySeparatorChar);
         if (hasDirSep)
@@ -1972,15 +3155,446 @@ public class {scriptName} : MonoBehaviour
         string projectRootNorm = projectRoot.Replace('/', _fs.Path.DirectorySeparatorChar);
         string defaultPrefixNorm = defaultPrefix.Replace('/', _fs.Path.DirectorySeparatorChar);
         if (projectRootNorm.EndsWith(defaultPrefixNorm, StringComparison.OrdinalIgnoreCase))
-            return _fs.Path.GetFullPath(_fs.Path.Combine(projectRoot, fileName));
+            return EnsureResolvedAssetInside(projectRoot, _fs.Path.GetFullPath(_fs.Path.Combine(projectRoot, fileName)));
         if (projectRootNorm.EndsWith("Assets", StringComparison.OrdinalIgnoreCase))
-            return _fs.Path.GetFullPath(_fs.Path.Combine(projectRoot, defaultSubfolder, fileName));
-        return _fs.Path.GetFullPath(_fs.Path.Combine(projectRoot, "Assets", defaultSubfolder, fileName));
+            return EnsureResolvedAssetInside(projectRoot, _fs.Path.GetFullPath(_fs.Path.Combine(projectRoot, defaultSubfolder, fileName)));
+        return EnsureResolvedAssetInside(projectRoot, _fs.Path.GetFullPath(_fs.Path.Combine(projectRoot, "Assets", defaultSubfolder, fileName)));
     }
 
     // -----------------------------------------------------------------------
     // Utility
     // -----------------------------------------------------------------------
+
+    private static string SerializeFailure<TData>(string code, string message, UnityMcpErrorCategory category, string? remediation = null)
+        => JsonSerializer.Serialize(new ToolResultEnvelope<TData>
+        {
+            Success = false,
+            Message = message,
+            SuggestedRemediation = remediation,
+            Errors =
+            [
+                new UnityMcpError
+                {
+                    Category = category,
+                    Code = code,
+                    Message = message,
+                }
+            ],
+        });
+
+    private UnitySceneGraph BuildSceneGraph(string projectPath, string resolvedPath, string content)
+    {
+        var objects = new List<UnitySceneObject>();
+        foreach (Match match in Regex.Matches(content, @"(?ms)^--- !u!1 &(?<id>\d+)\s*\nGameObject:\s*(?<body>.*?)(?=^--- !u!|\z)"))
+        {
+            string id = match.Groups["id"].Value;
+            string body = match.Groups["body"].Value;
+            string name = Regex.Match(body, @"(?m)^  m_Name:\s*(?<name>.*)$").Groups["name"].Value.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+                name = $"GameObject_{id}";
+
+            var components = Regex.Matches(body, @"component:\s*\{fileID:\s*(?<id>\d+)\}")
+                .Select(componentMatch => ResolveComponentType(content, componentMatch.Groups["id"].Value))
+                .Where(type => !string.IsNullOrWhiteSpace(type))
+                .ToArray();
+
+            var transformMatch = Regex.Match(content, $@"(?ms)^--- !u!4 &(?<transformId>\d+)\s*\nTransform:\s*.*?m_GameObject:\s*\{{fileID:\s*{Regex.Escape(id)}\}}(?<body>.*?)(?=^--- !u!|\z)");
+            string? parentFileId = null;
+            var properties = new Dictionary<string, object?>();
+            if (transformMatch.Success)
+            {
+                string transformBody = transformMatch.Groups["body"].Value;
+                var parentMatch = Regex.Match(transformBody, @"m_Father:\s*\{fileID:\s*(?<id>\d+)\}");
+                if (parentMatch.Success && parentMatch.Groups["id"].Value != "0")
+                    parentFileId = parentMatch.Groups["id"].Value;
+                properties["position"] = Regex.Match(transformBody, @"m_LocalPosition:\s*(?<value>\{.*\})").Groups["value"].Value;
+                properties["rotation"] = Regex.Match(transformBody, @"m_LocalRotation:\s*(?<value>\{.*\})").Groups["value"].Value;
+                properties["scale"] = Regex.Match(transformBody, @"m_LocalScale:\s*(?<value>\{.*\})").Groups["value"].Value;
+            }
+
+            objects.Add(new UnitySceneObject
+            {
+                Name = name,
+                Path = name,
+                FileId = id,
+                ParentFileId = parentFileId,
+                Components = components,
+                Properties = properties,
+            });
+        }
+
+        return new UnitySceneGraph
+        {
+            ScenePath = MakeProjectRelativePath(projectPath, resolvedPath),
+            Objects = objects,
+        };
+    }
+
+    private static UnitySceneObject? FindSceneObject(UnitySceneGraph graph, string objectPath)
+    {
+        string normalized = objectPath.Trim();
+        return graph.Objects.FirstOrDefault(o =>
+            string.Equals(o.Path, normalized, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(o.Name, normalized, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(o.FileId, normalized, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string ResolveComponentType(string content, string componentFileId)
+    {
+        var match = Regex.Match(content, $@"(?ms)^--- !u!(?<classId>\d+) &{Regex.Escape(componentFileId)}\s*\n(?<type>\w+):");
+        if (!match.Success)
+            return string.Empty;
+        return match.Groups["type"].Value;
+    }
+
+    private static string ReplaceGameObjectName(string content, string gameObjectFileId, string newName)
+    {
+        return Regex.Replace(content,
+            $@"(?ms)(^--- !u!1 &{Regex.Escape(gameObjectFileId)}\s*\nGameObject:\s*.*?^  m_Name:\s*).*$",
+            "$1" + EscapeYamlScalar(newName),
+            RegexOptions.Multiline);
+    }
+
+    private static string RemoveYamlDocumentsForObject(string content, string gameObjectFileId)
+    {
+        var componentIds = new HashSet<string> { gameObjectFileId };
+        var goMatch = Regex.Match(content, $@"(?ms)^--- !u!1 &{Regex.Escape(gameObjectFileId)}\s*\nGameObject:\s*(?<body>.*?)(?=^--- !u!|\z)");
+        if (goMatch.Success)
+        {
+            foreach (Match componentMatch in Regex.Matches(goMatch.Groups["body"].Value, @"component:\s*\{fileID:\s*(?<id>\d+)\}"))
+                componentIds.Add(componentMatch.Groups["id"].Value);
+        }
+
+        foreach (string id in componentIds)
+            content = Regex.Replace(content, $@"(?ms)^--- !u!\d+ &{Regex.Escape(id)}\s*\n.*?(?=^--- !u!|\z)", string.Empty);
+        return content;
+    }
+
+    private static string ExtractYamlDocumentsForObject(string content, string gameObjectFileId)
+    {
+        var documents = new List<string>();
+        var componentIds = new HashSet<string> { gameObjectFileId };
+        var goMatch = Regex.Match(content, $@"(?ms)^--- !u!1 &{Regex.Escape(gameObjectFileId)}\s*\nGameObject:\s*(?<body>.*?)(?=^--- !u!|\z)");
+        if (goMatch.Success)
+        {
+            documents.Add(goMatch.Value);
+            foreach (Match componentMatch in Regex.Matches(goMatch.Groups["body"].Value, @"component:\s*\{fileID:\s*(?<id>\d+)\}"))
+                componentIds.Add(componentMatch.Groups["id"].Value);
+        }
+
+        foreach (string id in componentIds.Where(id => id != gameObjectFileId))
+        {
+            var match = Regex.Match(content, $@"(?ms)^--- !u!\d+ &{Regex.Escape(id)}\s*\n.*?(?=^--- !u!|\z)");
+            if (match.Success)
+                documents.Add(match.Value);
+        }
+        return string.Join("\n", documents);
+    }
+
+    private static long NextYamlFileId(string content)
+    {
+        var ids = Regex.Matches(content, @"^--- !u!\d+ &(?<id>\d+)", RegexOptions.Multiline)
+            .Select(match => long.TryParse(match.Groups["id"].Value, out long id) ? id : 0)
+            .DefaultIfEmpty(100);
+        return ids.Max() + 1;
+    }
+
+    private static string AddComponentReference(string content, string gameObjectFileId, string componentFileId)
+    {
+        return Regex.Replace(content,
+            $@"(?ms)(^--- !u!1 &{Regex.Escape(gameObjectFileId)}\s*\nGameObject:\s*.*?^  m_Component:\s*\n)",
+            "$1  - component: {fileID: " + componentFileId + "}\n",
+            RegexOptions.Multiline);
+    }
+
+    private UnityAssetMetadata BuildAssetMetadata(string projectPath, string resolvedPath)
+    {
+        string metaPath = resolvedPath + ".meta";
+        string? guid = TryReadGuid(metaPath);
+        string content = IsTextLikeAsset(resolvedPath) ? _fs.File.ReadAllText(resolvedPath) : string.Empty;
+        var dependencies = Regex.Matches(content, @"guid:\s*([a-fA-F0-9]{32})")
+            .Select(match => match.Groups[1].Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return new UnityAssetMetadata
+        {
+            Path = MakeProjectRelativePath(projectPath, resolvedPath),
+            Guid = guid,
+            Type = _fs.Path.GetExtension(resolvedPath).TrimStart('.').ToLowerInvariant(),
+            HasMeta = _fs.File.Exists(metaPath),
+            Dependencies = dependencies,
+        };
+    }
+
+    private string? TryReadGuid(string metaPath)
+    {
+        if (!_fs.File.Exists(metaPath))
+            return null;
+        var match = Regex.Match(_fs.File.ReadAllText(metaPath), @"guid:\s*([a-fA-F0-9]{32})");
+        return match.Success ? match.Groups[1].Value : null;
+    }
+
+    private bool GuidExists(string projectPath, string guid)
+    {
+        string assetsPath = _fs.Path.Combine(projectPath, "Assets");
+        if (!_fs.Directory.Exists(assetsPath))
+            return false;
+        return _fs.Directory.EnumerateFiles(assetsPath, "*.meta", SearchOption.AllDirectories)
+            .Any(meta => string.Equals(TryReadGuid(meta), guid, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsTextLikeAsset(string path)
+    {
+        string extension = Path.GetExtension(path).ToLowerInvariant();
+        return extension is ".unity" or ".prefab" or ".mat" or ".asset" or ".controller" or ".anim" or ".json" or ".inputactions" or ".cs" or ".txt";
+    }
+
+    private string ListDomainObjects(string projectPath, string folderName, string domainName, params string[] componentTypes)
+    {
+        string folderPath = ResolvePath(projectPath, string.IsNullOrWhiteSpace(folderName) ? "Assets/Scenes" : folderName);
+        if (!_fs.Directory.Exists(folderPath))
+            return SerializeFailure<IReadOnlyList<UnitySceneObject>>($"{domainName}.FolderNotFound", $"Folder not found: {folderPath}", UnityMcpErrorCategory.Io);
+
+        var objects = new List<UnitySceneObject>();
+        foreach (string scenePath in _fs.Directory.EnumerateFiles(folderPath, "*.unity", SearchOption.AllDirectories))
+        {
+            var graph = BuildSceneGraph(projectPath, scenePath, _fs.File.ReadAllText(scenePath));
+            objects.AddRange(graph.Objects.Where(o => o.Components.Any(c => componentTypes.Contains(c, StringComparer.OrdinalIgnoreCase))));
+        }
+
+        return JsonSerializer.Serialize(new ToolResultEnvelope<IReadOnlyList<UnitySceneObject>>
+        {
+            Success = true,
+            Data = objects,
+            Message = $"Listed {objects.Count} {domainName} objects.",
+        });
+    }
+
+    private string ValidateDomainObjects(string projectPath, string folderName, string domainName, bool requireAtLeastOne, params string[] componentTypes)
+    {
+        string json = ListDomainObjects(projectPath, folderName, domainName, componentTypes.Length == 0 ? new[] { domainName } : componentTypes);
+        var envelope = JsonSerializer.Deserialize<ToolResultEnvelope<IReadOnlyList<UnitySceneObject>>>(json, JsonOpts);
+        var warnings = new List<UnityMcpError>();
+        var objects = envelope?.Data ?? Array.Empty<UnitySceneObject>();
+        if (objects.Count == 0 && requireAtLeastOne)
+        {
+            warnings.Add(new UnityMcpError
+            {
+                Category = UnityMcpErrorCategory.Validation,
+                Code = $"{domainName}.Missing",
+                Message = $"No {domainName} objects were found.",
+                Details = new { suggestedRemediation = $"Create at least one {domainName} in a scene under {folderName}." },
+            });
+        }
+
+        if (string.Equals(domainName, "Physics", StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (var obj in objects)
+            {
+                bool hasBody = obj.Components.Any(c => c.Contains("Rigidbody", StringComparison.OrdinalIgnoreCase));
+                bool hasCollider = obj.Components.Any(c => c.Contains("Collider", StringComparison.OrdinalIgnoreCase));
+                if (hasBody && !hasCollider)
+                {
+                    warnings.Add(new UnityMcpError
+                    {
+                        Category = UnityMcpErrorCategory.Validation,
+                        Code = "Physics.RigidbodyWithoutCollider",
+                        Message = $"{obj.Path} has a Rigidbody but no Collider.",
+                    });
+                }
+            }
+        }
+
+        if (string.Equals(domainName, "Light", StringComparison.OrdinalIgnoreCase) && objects.Count == 0)
+        {
+            warnings.Add(new UnityMcpError
+            {
+                Category = UnityMcpErrorCategory.Validation,
+                Code = "Light.NoneFound",
+                Message = "No lights found in scanned scenes.",
+            });
+        }
+
+        return JsonSerializer.Serialize(new ImportValidationResult
+        {
+            Success = true,
+            ErrorCount = 0,
+            WarningCount = warnings.Count,
+            Errors = Array.Empty<UnityMcpError>(),
+            Warnings = warnings,
+            Message = $"{domainName} validation completed.",
+        });
+    }
+
+    private static bool DictionaryEquals(IReadOnlyDictionary<string, object?> left, IReadOnlyDictionary<string, object?> right)
+    {
+        if (left.Count != right.Count)
+            return false;
+        foreach (var entry in left)
+        {
+            if (!right.TryGetValue(entry.Key, out object? value))
+                return false;
+            if (!string.Equals(Convert.ToString(entry.Value), Convert.ToString(value), StringComparison.Ordinal))
+                return false;
+        }
+        return true;
+    }
+
+    private static string EscapeYamlScalar(string value)
+        => value.Replace("\r", string.Empty).Replace("\n", " ").Trim();
+
+    private static string FormatJsonColor(JsonElement value)
+    {
+        double r = value.TryGetProperty("r", out var rValue) ? rValue.GetDouble() : 1;
+        double g = value.TryGetProperty("g", out var gValue) ? gValue.GetDouble() : 1;
+        double b = value.TryGetProperty("b", out var bValue) ? bValue.GetDouble() : 1;
+        double a = value.TryGetProperty("a", out var aValue) ? aValue.GetDouble() : 1;
+        return $"{{r: {r:G}, g: {g:G}, b: {b:G}, a: {a:G}}}";
+    }
+
+    private static string ReplaceYamlListEntry(string content, string key, string value)
+    {
+        if (content.Contains($"- {key}:", StringComparison.Ordinal))
+            return Regex.Replace(content, $@"(?m)^    - {Regex.Escape(key)}: .*$", $"    - {key}: {value}");
+        return content;
+    }
+
+    private static string SanitizeAssetName(string value)
+    {
+        string sanitized = Regex.Replace(value, @"[^a-zA-Z0-9_\-]", "_").Trim('_');
+        return string.IsNullOrWhiteSpace(sanitized) ? "Asset" : sanitized;
+    }
+
+    private async Task<Dictionary<string, string>> ReadPackageDependenciesAsync(string manifestPath, CancellationToken cancellationToken)
+    {
+        if (!_fs.File.Exists(manifestPath))
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        string existing = await _fs.File.ReadAllTextAsync(manifestPath, cancellationToken);
+        using JsonDocument existingDoc = JsonDocument.Parse(existing);
+        var dependencies = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (existingDoc.RootElement.TryGetProperty("dependencies", out var deps))
+        {
+            foreach (var prop in deps.EnumerateObject())
+                dependencies[prop.Name] = prop.Value.GetString() ?? string.Empty;
+        }
+        return dependencies;
+    }
+
+    private async Task WritePackageDependenciesAsync(string manifestPath, Dictionary<string, string> dependencies, CancellationToken cancellationToken)
+    {
+        string? dir = _fs.Path.GetDirectoryName(manifestPath);
+        if (!string.IsNullOrWhiteSpace(dir))
+            _fs.Directory.CreateDirectory(dir);
+        var manifestObject = new Dictionary<string, object> { ["dependencies"] = dependencies.OrderBy(p => p.Key).ToDictionary(p => p.Key, p => p.Value) };
+        await _fs.File.WriteAllTextAsync(manifestPath, JsonSerializer.Serialize(manifestObject, new JsonSerializerOptions { WriteIndented = true }), cancellationToken);
+    }
+
+    private string? TryFindUnityExecutable()
+    {
+        try
+        {
+            return FindUnityExecutable();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private string FindRepositoryRoot()
+    {
+        string current = _fs.Directory.GetCurrentDirectory();
+        while (!string.IsNullOrWhiteSpace(current))
+        {
+            if (_fs.File.Exists(_fs.Path.Combine(current, "README.md")) &&
+                (_fs.Directory.Exists(_fs.Path.Combine(current, "Docs")) || _fs.Directory.Exists(_fs.Path.Combine(current, "Skills"))))
+            {
+                return current;
+            }
+
+            string? parent = _fs.Directory.GetParent(current)?.FullName;
+            if (string.IsNullOrWhiteSpace(parent) || string.Equals(parent, current, StringComparison.OrdinalIgnoreCase))
+                break;
+            current = parent;
+        }
+
+        return _fs.Directory.GetCurrentDirectory();
+    }
+
+    private string ValidateProjectRoot(string projectPath, bool requireExists)
+    {
+        if (string.IsNullOrWhiteSpace(projectPath))
+            throw new ArgumentException("Project path is required.", nameof(projectPath));
+        if (projectPath.Contains("://", StringComparison.Ordinal))
+            throw new ArgumentException("URI-style project paths are not supported.", nameof(projectPath));
+        string root = _fs.Path.GetFullPath(projectPath.Trim()).TrimEnd(_fs.Path.DirectorySeparatorChar, _fs.Path.AltDirectorySeparatorChar);
+        if (requireExists && !_fs.Directory.Exists(root))
+            throw new DirectoryNotFoundException($"Project path does not exist: {root}");
+        return root;
+    }
+
+    private void EnsureInsideProject(string projectRoot, string candidatePath)
+    {
+        string root = _fs.Path.GetFullPath(projectRoot).TrimEnd(_fs.Path.DirectorySeparatorChar, _fs.Path.AltDirectorySeparatorChar);
+        string candidate = _fs.Path.GetFullPath(candidatePath).TrimEnd(_fs.Path.DirectorySeparatorChar, _fs.Path.AltDirectorySeparatorChar);
+        string rootWithSeparator = root + _fs.Path.DirectorySeparatorChar;
+        if (!candidate.Equals(root, StringComparison.OrdinalIgnoreCase) &&
+            !candidate.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Path must resolve inside project root. Path: {candidate}");
+        }
+    }
+
+    private string EnsureResolvedAssetInside(string projectRoot, string resolvedPath)
+    {
+        EnsureInsideProject(projectRoot, resolvedPath);
+        return resolvedPath;
+    }
+
+    private async Task WritePackagesManifestAsync(string projectDir, string? unityTemplate, CancellationToken cancellationToken)
+    {
+        string packagesDir = _fs.Path.Combine(projectDir, "Packages");
+        if (!_fs.Directory.Exists(packagesDir))
+            _fs.Directory.CreateDirectory(packagesDir);
+
+        string manifestPath = _fs.Path.Combine(packagesDir, "manifest.json");
+        if (_fs.File.Exists(manifestPath))
+            return;
+
+        var templatePackages = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["urp"] = new Dictionary<string, string>
+            {
+                ["com.unity.render-pipelines.universal"] = DefaultPackageVersions.TryGetValue("com.unity.render-pipelines.universal", out var v) ? v : ""
+            },
+            ["hdrp"] = new Dictionary<string, string>
+            {
+                ["com.unity.render-pipelines.high-definition"] = DefaultPackageVersions.TryGetValue("com.unity.render-pipelines.core", out var hv) ? hv : ""
+            },
+            ["vr"] = new Dictionary<string, string>
+            {
+                ["com.unity.xr.management"] = "4.0.1"
+            },
+            ["2d"] = new Dictionary<string, string>
+            {
+                ["com.unity.2d.sprite"] = "2.0.0"
+            }
+        };
+
+        Dictionary<string, string> deps = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(unityTemplate) && templatePackages.TryGetValue(unityTemplate.Trim().ToLowerInvariant(), out var mapped))
+        {
+            foreach (var kv in mapped)
+                deps[kv.Key] = kv.Value;
+        }
+
+        var manifestObject = new Dictionary<string, object> { ["dependencies"] = deps };
+        string output = JsonSerializer.Serialize(manifestObject, new JsonSerializerOptions { WriteIndented = true });
+        await _fs.File.WriteAllTextAsync(manifestPath, output, cancellationToken);
+        _logger.LogInformation("Wrote manifest.json for template {Template} at {Path}", unityTemplate ?? "", manifestPath);
+    }
 
     private void EnsureDirectoryExists(string filePath)
     {
@@ -2017,6 +3631,15 @@ public class {scriptName} : MonoBehaviour
             Tag = "Untagged",
             Layer = 5,
             Position = RectToPosition(panel.Rect),
+            Scale = new Vector3Def(panel.Rect.SizeDelta.X, panel.Rect.SizeDelta.Y, 1),
+            Components =
+            [
+                new ComponentDef(UnityYamlWriter.ClassId_CanvasRenderer),
+                new ComponentDef(UnityYamlWriter.ClassId_MonoBehaviour)
+                {
+                    Properties = { ["mcpComponentHint"] = "Image" }
+                },
+            ],
         };
         output.Add(panelGo);
 
@@ -2028,6 +3651,15 @@ public class {scriptName} : MonoBehaviour
                 Tag = "Untagged",
                 Layer = 5,
                 Position = RectToPosition(control.Rect),
+                Scale = new Vector3Def(control.Rect.SizeDelta.X, control.Rect.SizeDelta.Y, 1),
+                Components =
+                [
+                    new ComponentDef(UnityYamlWriter.ClassId_CanvasRenderer),
+                    new ComponentDef(UnityYamlWriter.ClassId_MonoBehaviour)
+                    {
+                        Properties = { ["mcpComponentHint"] = control.Type.ToString(), ["text"] = control.Text ?? string.Empty }
+                    },
+                ],
             };
             output.Add(controlGo);
         }

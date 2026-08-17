@@ -24,6 +24,9 @@ public static class UnityYamlWriter
     public const int ClassId_CapsuleCollider = 136;
     public const int ClassId_Rigidbody = 54;
     public const int ClassId_AudioSource = 82;
+    public const int ClassId_CanvasRenderer = 222;
+    public const int ClassId_Canvas = 223;
+    public const int ClassId_RectTransform = 224;
 
     private static long _nextFileId = 100;
 
@@ -138,9 +141,11 @@ public static class UnityYamlWriter
         long transformId = NextFileId();
 
         // Collect component fileIDs (transform + extras)
+        bool usesRectTransform = go.Components.Any(component => component.ClassId == ClassId_RectTransform || component.ClassId == ClassId_Canvas || component.ClassId == ClassId_CanvasRenderer);
+        int transformClassId = usesRectTransform ? ClassId_RectTransform : ClassId_Transform;
         var componentIds = new List<(int classId, long fileId)>
         {
-            (ClassId_Transform, transformId)
+            (transformClassId, transformId)
         };
 
         // Pre-allocate IDs for all components
@@ -174,8 +179,8 @@ public static class UnityYamlWriter
         sb.AppendLine($"  m_IsActive: {(go.IsActive ? 1 : 0)}");
 
         // --- Transform ---
-        sb.AppendLine($"--- !u!{ClassId_Transform} &{transformId}");
-        sb.AppendLine("Transform:");
+        sb.AppendLine($"--- !u!{transformClassId} &{transformId}");
+        sb.AppendLine(usesRectTransform ? "RectTransform:" : "Transform:");
         sb.AppendLine("  m_ObjectHideFlags: 0");
         sb.AppendLine("  m_CorrespondingSourceObject: {fileID: 0}");
         sb.AppendLine("  m_PrefabInstance: {fileID: 0}");
@@ -188,6 +193,14 @@ public static class UnityYamlWriter
         sb.AppendLine("  m_Children: []");
         sb.AppendLine("  m_Father: {fileID: 0}");
         sb.AppendLine($"  m_LocalEulerAnglesHint: {FormatVector3(go.EulerAngles)}");
+        if (usesRectTransform)
+        {
+            sb.AppendLine($"  m_AnchorMin: {FormatVector2(defX: 0.5f, defY: 0.5f)}");
+            sb.AppendLine($"  m_AnchorMax: {FormatVector2(defX: 0.5f, defY: 0.5f)}");
+            sb.AppendLine($"  m_AnchoredPosition: {FormatVector2(go.Position.X, go.Position.Y)}");
+            sb.AppendLine($"  m_SizeDelta: {FormatVector2(go.Scale.X == 1 ? 100 : go.Scale.X, go.Scale.Y == 1 ? 30 : go.Scale.Y)}");
+            sb.AppendLine($"  m_Pivot: {FormatVector2(defX: 0.5f, defY: 0.5f)}");
+        }
 
         // --- Extra components ---
         foreach (var (classId, fileId, def) in componentDefinitions)
@@ -293,12 +306,35 @@ public static class UnityYamlWriter
                 sb.AppendLine($"  m_Loop: {(def.GetBool("loop") ? 1 : 0)}");
                 break;
 
+            case ClassId_Canvas:
+                sb.AppendLine("Canvas:");
+                sb.AppendLine("  m_ObjectHideFlags: 0");
+                sb.AppendLine($"  m_GameObject: {{fileID: {goId}}}");
+                sb.AppendLine("  m_Enabled: 1");
+                sb.AppendLine("  serializedVersion: 3");
+                sb.AppendLine("  m_RenderMode: 0");
+                sb.AppendLine("  m_PixelPerfect: 0");
+                sb.AppendLine("  m_SortingOrder: 0");
+                sb.AppendLine("  m_TargetDisplay: 0");
+                break;
+
+            case ClassId_CanvasRenderer:
+                sb.AppendLine("CanvasRenderer:");
+                sb.AppendLine("  m_ObjectHideFlags: 0");
+                sb.AppendLine($"  m_GameObject: {{fileID: {goId}}}");
+                sb.AppendLine("  m_CullTransparentMesh: 1");
+                break;
+
             default:
                 // Generic/unknown component - write minimal stub
                 sb.AppendLine($"MonoBehaviour:");
                 sb.AppendLine("  m_ObjectHideFlags: 0");
                 sb.AppendLine($"  m_GameObject: {{fileID: {goId}}}");
                 sb.AppendLine("  m_Enabled: 1");
+                foreach (var property in def.Properties)
+                {
+                    sb.AppendLine($"  # mcp_{property.Key}: {property.Value}");
+                }
                 break;
         }
     }
@@ -356,6 +392,7 @@ public static class UnityYamlWriter
 
     // Formatting helpers
     private static string F(float v) => v.ToString("G", CultureInfo.InvariantCulture);
+    private static string FormatVector2(float defX, float defY) => $"{{x: {F(defX)}, y: {F(defY)}}}";
     private static string FormatVector3(Vector3Def v) => $"{{x: {F(v.X)}, y: {F(v.Y)}, z: {F(v.Z)}}}";
     private static string FormatQuaternion(QuaternionDef q) => $"{{x: {F(q.X)}, y: {F(q.Y)}, z: {F(q.Z)}, w: {F(q.W)}}}";
     private static string FormatColor(ColorDef c) => $"{{r: {F(c.R)}, g: {F(c.G)}, b: {F(c.B)}, a: {F(c.A)}}}";

@@ -29,35 +29,42 @@ The intent is to:
 
 `unity_validate_import` is the primary entry point for project-level validation.
 
-### 2.1 Current behavior (Phase 0 stub)
+### 2.1 Current behavior
 
-- Implemented in `FileUnityService.ValidateImportAsync`.
-- Returns a stubbed `ImportValidationResult`:
+- Implemented in `FileUnityService.ValidateImportAsync` via `IUnityEditorExecutor`.
+- When `UNITY_EDITOR_PATH` (or a live Editor bridge) is unavailable, returns:
 
 ```json
 {
-  "success": true,
-  "error_count": 0,
+  "success": false,
+  "error_count": 1,
   "warning_count": 0,
-  "errors": [],
+  "errors": [
+    {
+      "category": "ExternalTool",
+      "code": "ValidateImport.EditorUnavailable",
+      "message": "Unity Editor executable not found. Set UNITY_EDITOR_PATH environment variable."
+    }
+  ],
   "warnings": [],
-  "message": "Stub: file-only server cannot run Unity compilation. Implement batch-mode validation when Unity is available."
+  "message": "Unity Editor is required for authoritative import and compilation validation. Set UNITY_EDITOR_PATH."
 }
 ```
 
-### 2.2 Target behavior (Phase 1 design)
+- When Unity is available, the server installs `com.unitymcp.bridge` if needed and runs `validate_import` through live localhost bridge or batch `-executeMethod UnityMcp.Bridge.BatchRunner.Run`. The result includes populated `errors` and `warnings` arrays from compiler diagnostics (not empty placeholders).
 
-When Unity CLI integration is available, `unity_validate_import` SHOULD:
+### 2.2 Editor bridge execution
 
-1. Run Unity in batch mode against the specified project:
-   - Execute an Editor script that performs:
-     - `AssetDatabase.Refresh()`
-     - Script compilation
-2. The Editor script writes a JSON report file into the project, for example:
-   - `ProjectRoot/Library/mcp_validate_result.json`
-3. `FileUnityService.ValidateImportAsync` reads and returns this report to the caller.
+When Unity CLI / live bridge integration is available, `unity_validate_import` WILL:
 
-**JSON report shape (mapped into ImportValidationResult):**
+1. Prefer a live Editor bridge (`Temp/UnityMcp/bridge.json`) when the project is open in Unity.
+2. Otherwise run Unity in batch mode:
+   - `-executeMethod UnityMcp.Bridge.BatchRunner.Run`
+   - Request/result JSON under `Temp/UnityMcp/`
+3. The bridge performs `AssetDatabase.Refresh()` and collects compilation diagnostics.
+4. `FileUnityService.ValidateImportAsync` returns the bridge result envelope to the caller.
+
+**JSON report shape (mapped into ImportValidationResult / ToolResultEnvelope):**
 
 ```json
 {
